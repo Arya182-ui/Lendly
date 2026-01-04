@@ -60,16 +60,8 @@ Lendly is a student-first platform that makes it easy for college students to le
    ```sh
    flutter pub get
    ```
-3. **Install server dependencies:**
-   ```sh
-   cd server
-   npm install
-   ```
-4. **Run the backend server:**
-   ```sh
-   npm start
-   ```
-5. **Run the Flutter app:**
+
+3. **Run the Flutter app:**
    ```sh
    flutter run
    ```
