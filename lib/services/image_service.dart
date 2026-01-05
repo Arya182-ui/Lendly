@@ -6,10 +6,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:ui' as ui;
+import '../config/env_config.dart';
+import 'firebase_auth_service.dart';
 
 /// Comprehensive image service for upload, compression, caching, and display
 class ImageService {
-  static const String _baseUrl = 'https://ary-lendly-production.up.railway.app';
+  static String get _baseUrl => EnvConfig.apiBaseUrl;
   static final ImagePicker _picker = ImagePicker();
   static const int _maxFileSize = 5 * 1024 * 1024; // 5MB
   static const int _maxWidth = 1920;
@@ -81,6 +83,10 @@ class ImageService {
     try {
       final uri = Uri.parse('$_baseUrl$endpoint');
       final request = http.MultipartRequest('POST', uri);
+      final token = await FirebaseAuthService().getIdToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       
       // Add image file
       request.files.add(
@@ -143,7 +149,6 @@ class ImageService {
               title: const Text('Take Photo'),
               subtitle: const Text('Capture with camera'),
               onTap: () async {
-                Navigator.pop(context);
                 try {
                   final file = await pickFromCamera();
                   if (context.mounted) {
@@ -173,7 +178,6 @@ class ImageService {
               title: const Text('Photo Gallery'),
               subtitle: const Text('Choose from gallery'),
               onTap: () async {
-                Navigator.pop(context);
                 try {
                   final file = await pickFromGallery();
                   if (context.mounted) {

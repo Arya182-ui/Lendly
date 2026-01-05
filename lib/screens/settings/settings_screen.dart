@@ -1,9 +1,9 @@
 import 'contact_support_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/env_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../../services/api_client.dart';
 import 'package:lendly/widgets/avatar_options.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme_notifier.dart';
@@ -29,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool allowMessages = true;
   bool isLoading = false;
   bool isError = false;
+  bool isAdmin = false;
 
   // Simulated user data (replace with real user model/provider in production)
   String? userName;
@@ -46,26 +47,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final session = await SharedPreferences.getInstance();
     final uid = session.getString('uid');
     if (uid == null || uid.isEmpty) {
+      if (!mounted) return;
       setState(() {
         userUid = '';
         isLoading = false;
+        isAdmin = false;
       });
       return;
     }
     userUid = uid;
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/profile?uid=$uid'));
-      final data = jsonDecode(res.body);
+      final data = await SimpleApiClient.get(
+        '/user/profile',
+        queryParams: {'uid': uid},
+        requiresAuth: true,
+      );
+      final adminFlag = await _checkAdminStatus(uid);
+      if (!mounted) return;
       setState(() {
         userName = data['name'] ?? '';
         userAvatarUrl = data['avatar'] ?? '';
+        isAdmin = adminFlag;
         isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoading = false;
         isError = true;
+        isAdmin = false;
       });
+    }
+  }
+
+  Future<bool> _checkAdminStatus(String uid) async {
+    try {
+      final data = await SimpleApiClient.post(
+        '/admin/check-admin',
+        body: {'uid': uid},
+        requiresAuth: true,
+      );
+      return data['isAdmin'] == true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -194,20 +218,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               );
                             },
                           ),
-                          ListTile(
-                            leading: const Icon(Icons.admin_panel_settings, color: Colors.purple),
-                            title: const Text('Admin Panel'),
-                            subtitle: const Text('Manage verifications and users'),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const AdminPanelScreen(),
-                                ),
-                              );
-                            },
-                          ),
+                          if (isAdmin)
+                            ListTile(
+                              leading: const Icon(Icons.admin_panel_settings, color: Colors.purple),
+                              title: const Text('Admin Panel'),
+                              subtitle: const Text('Manage verifications and users'),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const AdminPanelScreen(),
+                                  ),
+                                );
+                              },
+                            ),
                           const Divider(),
                           ListTile(
                             leading: const Icon(Icons.logout, color: Colors.red),

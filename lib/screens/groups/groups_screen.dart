@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'group_detail_screen.dart';
 import 'create_group_screen.dart';
 import '../../services/group_service.dart';
 import '../../services/session_service.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_shadows.dart';
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -45,7 +48,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
       try {
         final uid = await SessionService.getUid();
         if (uid == null) throw Exception('User not logged in');
-        final results = await GroupService.fetchDiscoverGroupsRemote(uid, val);
+        final groupService = GroupService();
+        final results = await groupService.fetchDiscoverGroups(uid: uid, query: val);
         setState(() {
           remoteSearchResults = results;
           _remoteSearchLoading = false;
@@ -87,7 +91,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
     try {
       final uid = await SessionService.getUid();
       if (uid == null) throw Exception('User not logged in');
-      final groups = await GroupService.fetchDiscoverGroups(uid);
+      final groupService = GroupService();
+      final groups = await groupService.fetchDiscoverGroups(uid: uid);
       setState(() {
         discoverGroups = groups;
         _discoverLoading = false;
@@ -113,7 +118,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
     try {
       final uid = await SessionService.getUid();
       if (uid == null) throw Exception('User not logged in');
-      final groups = await GroupService.fetchMyGroups(uid);
+      final groups = await GroupService.fetchMyGroupsStatic(uid);
       setState(() {
         myGroups = groups;
         _loading = false;
@@ -272,7 +277,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       child: Icon(Icons.groups, color: const Color(0xFF1DBF73)),
                     ),
                     title: Text(group['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1a237e))),
-                    subtitle: Text('${(group['members']?.cast<dynamic>() ?? []).length} members', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                    subtitle: Text('${((group['members']?.cast<dynamic>() ?? []).length)} members', style: const TextStyle(fontSize: 13, color: Colors.black54)),
                     trailing: (_currentUid != null && group['createdBy'] == _currentUid)
                         ? IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
@@ -297,7 +302,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                               );
                               if (confirm == true) {
                                 try {
-                                  await GroupService.deleteGroup(groupId: group['id'], uid: _currentUid!);
+                                  final groupService = GroupService();
+                                  await groupService.deleteGroup(group['id'], _currentUid!);
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Group deleted'), backgroundColor: Colors.red),
@@ -407,7 +413,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                         child: Icon(Icons.groups, color: const Color(0xFF1DBF73)),
                                       ),
                                       title: Text(group['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1a237e))),
-                                      subtitle: Text('${(group['members'] as List).length} members · ${group['type'] ?? ''}', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                                      subtitle: Text('${((group['members'] as List?) ?? []).length} members · ${group['type'] ?? ''}', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+
                                       trailing: const Icon(Icons.chevron_right, color: Color(0xFF1a237e)),
                                       isThreeLine: false,
                                       dense: false,
@@ -582,7 +589,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
         onPressed: () async {
           try {
             // Join group API call
-            await GroupService.joinGroup(groupId: group['id'], uid: _currentUid!);
+            final groupService = GroupService();
+            await groupService.joinGroup(group['id'], _currentUid!);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Successfully joined group!'), backgroundColor: Colors.green),

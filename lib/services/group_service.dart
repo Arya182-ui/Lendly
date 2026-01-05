@@ -1,253 +1,532 @@
-import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'dart:async';
+import '../config/api_config.dart';
+import 'firebase_auth_service.dart';
 
-/// Group management service with error handling and validation
-class GroupService {
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
-  static const _headers = {'Content-Type': 'application/json'};
-  static const _timeout = Duration(seconds: 15);
+class GroupService extends ChangeNotifier {
+  // Use ApiConfig instead of hardcoded URL
+  static String get baseUrl => ApiConfig.baseUrl;
+  static const Duration _timeout = Duration(seconds: 30);
+  
+  final FirebaseAuthService _authService = FirebaseAuthService();
+  
+  // Validation constants
+  static const int MAX_NAME_LENGTH = 50;
+  static const int MAX_DESCRIPTION_LENGTH = 500;
+  static const int MAX_MEMBERS = 100;
+  static const List<String> ALLOWED_GROUP_TYPES = ['study', 'social', 'project', 'sports', 'other'];
+  
+  // Cache for groups
+  final Map<String, dynamic> _groupsCache = {};
+  final Map<String, Timer> _cacheTimers = {};
+  static const Duration cacheTimeout = Duration(minutes: 5);
 
-  /// Helper to parse error from response
-  static String _parseError(String body, String defaultMsg) {
+  /// Get auth headers with Firebase token
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final Map<String, String> headers = {'Content-Type': 'application/json'};
     try {
-      return jsonDecode(body)['error'] ?? defaultMsg;
-    } catch (_) {
-      return defaultMsg;
+      final token = await _authService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        debugPrint('Auth token obtained for groups: ${token.length} chars');
+        headers['Authorization'] = 'Bearer $token';
+      } else {
+        debugPrint('Warning: No auth token available for groups');
+      }
+    } catch (e) {
+      debugPrint('Failed to get auth token: $e');
     }
+    return headers;
   }
 
-  /// Discover groups with optional search query
-  static Future<List<Map<String, dynamic>>> fetchDiscoverGroups(
-    String uid, {
-    String? query,
-    int limit = 20,
-  }) async {
-    if (uid.isEmpty) throw ArgumentError('uid cannot be empty');
-    
+  /// Fetch all groups for a user
+  Future<List<Map<String, dynamic>>> fetchGroups(String uid) async {
     try {
-      final queryParams = {
-        'uid': uid,
-        'limit': limit.toString(),
-        if (query != null && query.trim().isNotEmpty) 'q': query,
-      };
-      final url = Uri.parse('$baseUrl/groups/discover').replace(queryParameters: queryParams);
-      
-      final response = await http.get(url).timeout(_timeout);
-      
+      final response = await http.get(
+        Uri.parse('$baseUrl/groups/my?uid=$uid'),
+        headers: await _getAuthHeaders(),
+      ).timeout(_timeout);
+
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
-      }
-      final errorBody = response.body;
-      print('Discover groups failed with status ${response.statusCode}: $errorBody');
-      throw GroupServiceException(_parseError(response.body, 'Failed to fetch discover groups'));
-    } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
-    } on SocketException {
-      throw GroupServiceException('No internet connection.');
-    }
-  }
-
-  /// Discover groups with remote search (alias for backwards compatibility)
-  static Future<List<Map<String, dynamic>>> fetchDiscoverGroupsRemote(
-    String uid,
-    String query, {
-    int limit = 20,
-  }) async {
-    return fetchDiscoverGroups(uid, query: query, limit: limit);
-  }
-
-  /// Delete a group (owner only)
-  static Future<void> deleteGroup({required String groupId, required String uid}) async {
-    if (groupId.isEmpty || uid.isEmpty) {
-      throw ArgumentError('groupId and uid cannot be empty');
-    }
-    
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/groups/delete'),
-        headers: _headers,
-        body: jsonEncode({'groupId': groupId, 'uid': uid}),
-      ).timeout(_timeout);
-      
-      if (response.statusCode != 200) {
-        throw GroupServiceException(_parseError(response.body, 'Failed to delete group'));
+        final data = json.decode(response.body);
+        // Backend returns array directly
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        } else if (data is Map && data['groups'] != null) {
+          return List<Map<String, dynamic>>.from(data['groups']);
+        }
+        return [];
+      } else {
+        throw Exception('Failed to fetch groups: ${response.statusCode}');
       }
     } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
+      throw Exception('Request timeout - please check your internet connection');
     } on SocketException {
-      throw GroupServiceException('No internet connection.');
-    }
-  }
-
-  /// Update group details
-  static Future<void> updateGroup({
-    required String groupId,
-    required String name,
-    required String description,
-    String? uid,
-  }) async {
-    if (groupId.isEmpty) throw ArgumentError('groupId cannot be empty');
-    if (name.trim().isEmpty) throw ArgumentError('name cannot be empty');
-    if (name.length > 100) throw ArgumentError('name too long (max 100 characters)');
-    if (description.length > 500) throw ArgumentError('description too long (max 500 characters)');
-    
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/groups/update'),
-        headers: _headers,
-        body: jsonEncode({
-          'groupId': groupId,
-          'name': name.trim(),
-          'description': description.trim(),
-          if (uid != null) 'uid': uid,
-        }),
-      ).timeout(_timeout);
-      
-      if (response.statusCode != 200) {
-        throw GroupServiceException(_parseError(response.body, 'Failed to update group'));
-      }
-    } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
-    } on SocketException {
-      throw GroupServiceException('No internet connection.');
-    }
-  }
-
-  /// Create a new group
-  static Future<Map<String, dynamic>?> createGroup({
-    required String name,
-    required String type,
-    required String description,
-    required String createdBy,
-  }) async {
-    if (name.trim().isEmpty) throw ArgumentError('name cannot be empty');
-    if (name.length > 100) throw ArgumentError('name too long (max 100 characters)');
-    if (type.isEmpty) throw ArgumentError('type cannot be empty');
-    if (createdBy.isEmpty) throw ArgumentError('createdBy cannot be empty');
-    if (description.length > 500) throw ArgumentError('description too long (max 500 characters)');
-    
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/groups/create'),
-        headers: _headers,
-        body: jsonEncode({
-          'name': name.trim(),
-          'type': type,
-          'description': description.trim(),
-          'createdBy': createdBy,
-        }),
-      ).timeout(_timeout);
-      
-      if (response.statusCode == 201) {
-        return jsonDecode(response.body);
-      }
-      final errorBody = response.body;
-      print('Group creation failed with status ${response.statusCode}: $errorBody');
-      throw GroupServiceException(_parseError(response.body, 'Failed to create group'));
-    } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
-    } on SocketException {
-      throw GroupServiceException('No internet connection.');
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to fetch groups: $e');
     }
   }
 
   /// Join a group
-  static Future<void> joinGroup({required String groupId, required String uid}) async {
-    if (groupId.isEmpty || uid.isEmpty) {
-      throw ArgumentError('groupId and uid cannot be empty');
-    }
-    
+  Future<Map<String, dynamic>> joinGroup(String groupId, String uid) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/groups/join'),
-        headers: _headers,
-        body: jsonEncode({'groupId': groupId, 'uid': uid}),
+        Uri.parse('$baseUrl/groups/$groupId/join'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'uid': uid}),
       ).timeout(_timeout);
-      
-      if (response.statusCode != 200) {
-        throw GroupServiceException(_parseError(response.body, 'Failed to join group'));
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to join group');
       }
     } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
+      throw Exception('Request timeout - please check your internet connection');
     } on SocketException {
-      throw GroupServiceException('No internet connection.');
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to join group: $e');
     }
   }
 
   /// Leave a group
-  static Future<void> leaveGroup({required String groupId, required String uid}) async {
-    if (groupId.isEmpty || uid.isEmpty) {
-      throw ArgumentError('groupId and uid cannot be empty');
-    }
-    
+  Future<Map<String, dynamic>> leaveGroup(String groupId, String uid) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/groups/leave'),
-        headers: _headers,
-        body: jsonEncode({'groupId': groupId, 'uid': uid}),
+        Uri.parse('$baseUrl/groups/$groupId/leave'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'uid': uid}),
       ).timeout(_timeout);
-      
-      if (response.statusCode != 200) {
-        throw GroupServiceException(_parseError(response.body, 'Failed to leave group'));
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to leave group');
       }
     } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
+      throw Exception('Request timeout - please check your internet connection');
     } on SocketException {
-      throw GroupServiceException('No internet connection.');
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to leave group: $e');
     }
   }
 
-  /// Fetch user's groups
-  static Future<List<Map<String, dynamic>>> fetchMyGroups(String uid) async {
-    if (uid.isEmpty) throw ArgumentError('uid cannot be empty');
-    
+  /// Fetch groups for discovery
+  Future<List<Map<String, dynamic>>> fetchDiscoverGroups({
+    required String uid,
+    int limit = 20,
+    String? query,
+    String? type,
+  }) async {
     try {
+      final queryParams = <String, String>{
+        'uid': uid,
+        'limit': limit.toString(),
+      };
+      
+      if (query != null && query.isNotEmpty) {
+        queryParams['query'] = query;
+      }
+      
+      if (type != null && type.isNotEmpty) {
+        queryParams['type'] = type;
+      }
+
+      final uri = Uri.parse('$baseUrl/groups/discover').replace(queryParameters: queryParams);
       final response = await http.get(
-        Uri.parse('$baseUrl/groups/my?uid=$uid'),
+        uri,
+        headers: await _getAuthHeaders(),
       ).timeout(_timeout);
+
+      debugPrint('✅ Discover groups status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        final data = json.decode(response.body);
+        debugPrint('📦 Response data type: ${data.runtimeType}');
+        
+        // Backend returns array directly, not wrapped in 'groups' key
+        if (data is List) {
+          debugPrint('✅ Got ${data.length} groups as List');
+          return List<Map<String, dynamic>>.from(data);
+        } else if (data is Map && data['groups'] != null) {
+          debugPrint('✅ Got groups from Map wrapper');
+          return List<Map<String, dynamic>>.from(data['groups']);
+        } else {
+          debugPrint('⚠️ Unexpected format, returning empty list');
+          return [];
+        }
+      } else {
+        final data = json.decode(response.body);
+        debugPrint('❌ Error response: $data');
+        throw Exception(data['error'] ?? 'Failed to fetch discover groups');
       }
-      throw GroupServiceException(_parseError(response.body, 'Failed to fetch groups'));
     } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
+      throw Exception('Request timeout - please check your internet connection');
     } on SocketException {
-      throw GroupServiceException('No internet connection.');
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to fetch discover groups: $e');
+    }
+  }
+
+  /// Get trending groups
+  static Future<List<Map<String, dynamic>>> getTrendingGroups() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/groups/trending'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['groups'] ?? []);
+      } else {
+        throw Exception('Failed to fetch trending groups');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to fetch trending groups: $e');
+    }
+  }
+
+  /// Get group suggestions
+  static Future<List<Map<String, dynamic>>> getGroupSuggestions(String uid) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/groups/suggestions?uid=$uid'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['groups'] ?? []);
+      } else {
+        throw Exception('Failed to fetch group suggestions');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to fetch group suggestions: $e');
+    }
+  }
+
+  /// Validate group data
+  static Map<String, dynamic> validateGroupData(Map<String, dynamic> groupData) {
+    final errors = <String, String>{};
+
+    // Validate name
+    final name = groupData['name']?.toString().trim();
+    if (name == null || name.isEmpty) {
+      errors['name'] = 'Group name is required';
+    } else if (name.length > MAX_NAME_LENGTH) {
+      errors['name'] = 'Group name must be $MAX_NAME_LENGTH characters or less';
+    }
+
+    // Validate type
+    final type = groupData['type']?.toString();
+    if (type != null && !ALLOWED_GROUP_TYPES.contains(type)) {
+      errors['type'] = 'Invalid group type. Allowed types: ${ALLOWED_GROUP_TYPES.join(", ")}';
+    }
+
+    // Validate description
+    final description = groupData['description']?.toString();
+    if (description != null && description.length > MAX_DESCRIPTION_LENGTH) {
+      errors['description'] = 'Description must be $MAX_DESCRIPTION_LENGTH characters or less';
+    }
+
+    // Validate max members
+    final maxMembers = groupData['max_members'];
+    if (maxMembers != null && (maxMembers < 2 || maxMembers > MAX_MEMBERS)) {
+      errors['max_members'] = 'Max members must be between 2 and $MAX_MEMBERS';
+    }
+
+    return {
+      'valid': errors.isEmpty,
+      'errors': errors,
+    };
+  }
+
+  /// Create a new group
+  Future<Map<String, dynamic>> createGroup(Map<String, dynamic> groupData) async {
+    // Validate data first
+    final validation = validateGroupData(groupData);
+    if (!validation['valid']) {
+      throw Exception('Validation failed: ${validation['errors']}');
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/groups'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(groupData),
+      ).timeout(_timeout);
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 201) {
+        notifyListeners();
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to create group');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to create group: $e');
+    }
+  }
+
+  /// Update a group
+  Future<Map<String, dynamic>> updateGroup(String groupId, Map<String, dynamic> groupData) async {
+    // Validate data first
+    final validation = validateGroupData(groupData);
+    if (!validation['valid']) {
+      throw Exception('Validation failed: ${validation['errors']}');
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/groups/$groupId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(groupData),
+      ).timeout(_timeout);
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        notifyListeners();
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to update group');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to update group: $e');
+    }
+  }
+
+  /// Delete a group
+  Future<Map<String, dynamic>> deleteGroup(String groupId, String uid) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/groups/$groupId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'uid': uid}),
+      ).timeout(_timeout);
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        notifyListeners();
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to delete group');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to delete group: $e');
+    }
+  }
+
+  /// Get group members
+  Future<List<Map<String, dynamic>>> getGroupMembers(String groupId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/groups/$groupId/members'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['members'] ?? []);
+      } else {
+        final data = json.decode(response.body);
+        throw Exception(data['error'] ?? 'Failed to fetch group members');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to fetch group members: $e');
+    }
+  }
+
+  /// Cache management
+  void _setCacheWithTimer(String key, dynamic data) {
+    _groupsCache[key] = data;
+    
+    // Clear existing timer
+    _cacheTimers[key]?.cancel();
+    
+    // Set new timer
+    _cacheTimers[key] = Timer(cacheTimeout, () {
+      _groupsCache.remove(key);
+      _cacheTimers.remove(key);
+    });
+  }
+
+  void clearCache() {
+    _groupsCache.clear();
+    for (final timer in _cacheTimers.values) {
+      timer.cancel();
+    }
+    _cacheTimers.clear();
+  }
+
+  @override
+  void dispose() {
+    clearCache();
+    super.dispose();
+  }
+
+  /// Get cached groups
+  List<Map<String, dynamic>>? getCachedGroups(String key) {
+    final cachedData = _groupsCache[key];
+    if (cachedData != null && cachedData is List) {
+      return List<Map<String, dynamic>>.from(cachedData);
+    }
+    return null;
+  }
+
+  /// Cache groups
+  void setCachedGroups(String key, List<Map<String, dynamic>> groups) {
+    _setCacheWithTimer(key, groups);
+  }
+
+  /// Join group with cache update
+  static Future<bool> joinGroupStatic(String groupId, String uid) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/groups/$groupId/join'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'uid': uid}),
+      ).timeout(_timeout);
+
+      return response.statusCode == 200;
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to join group: $e');
+    }
+  }
+
+  /// Leave group with cache update
+  static Future<bool> leaveGroupStatic(String groupId, String uid) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/groups/$groupId/leave'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'uid': uid}),
+      ).timeout(_timeout);
+
+      return response.statusCode == 200;
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      throw Exception('Failed to leave group: $e');
+    }
+  }
+
+  /// Fetch my groups
+  static Future<List<Map<String, dynamic>>> fetchMyGroupsStatic(String uid) async {
+    try {
+      // Create instance to get auth headers
+      final service = GroupService();
+      final response = await http.get(
+        Uri.parse('$baseUrl/groups/my?uid=$uid'),
+        headers: await service._getAuthHeaders(),
+      ).timeout(_timeout);
+
+      debugPrint('✅ My groups status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('📦 My groups data type: ${data.runtimeType}');
+        // Backend returns array directly, not wrapped in 'groups' key
+        if (data is List) {
+          debugPrint('✅ Got ${data.length} my groups as List');
+          return List<Map<String, dynamic>>.from(data);
+        } else if (data is Map && data['groups'] != null) {
+          debugPrint('✅ Got my groups from Map wrapper');
+          return List<Map<String, dynamic>>.from(data['groups']);
+        } else {
+          debugPrint('⚠️ Unexpected my groups format: $data');
+          return [];
+        }
+      } else {
+        final data = json.decode(response.body);
+        debugPrint('❌ My groups error: $data');
+        throw Exception(data['error'] ?? 'Failed to fetch my groups');
+      }
+    } on TimeoutException {
+      throw Exception('Request timeout - please check your internet connection');
+    } on SocketException {
+      throw Exception('No internet connection available');
+    } catch (e) {
+      debugPrint('❌ My groups exception: $e');
+      throw Exception('Failed to fetch my groups: $e');
     }
   }
 
   /// Fetch group by ID
-  static Future<Map<String, dynamic>> fetchGroupById(String groupId) async {
-    if (groupId.isEmpty) throw ArgumentError('groupId cannot be empty');
-    
+  static Future<Map<String, dynamic>?> fetchGroupByIdStatic(String groupId) async {
     try {
+      // Create instance to get auth headers
+      final service = GroupService();
       final response = await http.get(
         Uri.parse('$baseUrl/groups/$groupId'),
+        headers: await service._getAuthHeaders(),
       ).timeout(_timeout);
-      
+
+      debugPrint('✅ Group details status: ${response.statusCode} for group: $groupId');
+
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final data = json.decode(response.body);
+        debugPrint('📦 Group details data type: ${data.runtimeType}');
+        return data['group'] ?? data;
+      } else {
+        debugPrint('❌ Group details error: ${response.body}');
+        return null;
       }
-      throw GroupServiceException(_parseError(response.body, 'Failed to fetch group'));
     } on TimeoutException {
-      throw GroupServiceException('Request timed out. Please try again.');
+      throw Exception('Request timeout - please check your internet connection');
     } on SocketException {
-      throw GroupServiceException('No internet connection.');
+      throw Exception('No internet connection available');
+    } catch (e) {
+      debugPrint('❌ Group details exception: $e');
+      throw Exception('Failed to fetch group: $e');
     }
   }
-
 }
 
-/// Custom exception for group service errors
 class GroupServiceException implements Exception {
   final String message;
-  GroupServiceException(this.message);
+  final String? code;
+  
+  const GroupServiceException(this.message, [this.code]);
   
   @override
-  String toString() => message;
+  String toString() => 'GroupServiceException: $message';
 }

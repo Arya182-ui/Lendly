@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/env_config.dart';
 import '../../services/item_service.dart';
 import '../../services/session_service.dart';
 import '../../services/image_service.dart';
@@ -23,8 +24,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
   bool _loading = false;
   String? _error;
   File? _selectedImage;
-  String? _uploadedImageUrl;
-  final ItemService _service = ItemService('https://ary-lendly-production.up.railway.app');
+  final ItemService _service = ItemService(EnvConfig.apiBaseUrl);
 
   @override
   void initState() {
@@ -68,19 +68,6 @@ class _EditItemScreenState extends State<EditItemScreen> {
       return;
     }
     try {
-      // Upload image first if selected
-      if (_selectedImage != null) {
-        try {
-          _uploadedImageUrl = await ImageService.uploadImage(_selectedImage!, '/items');
-        } catch (imageError) {
-          setState(() { 
-            _loading = false; 
-            _error = 'Failed to upload image: ${imageError.toString()}'; 
-          });
-          return;
-        }
-      }
-
       final updatedItem = await _service.updateItem(
         id: widget.item['id'],
         ownerId: uid,

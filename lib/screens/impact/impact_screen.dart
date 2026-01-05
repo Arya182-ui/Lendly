@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/env_config.dart';
 import '../../services/impact_service.dart';
 import '../../services/session_service.dart';
 import '../../services/data_cache_manager.dart';
@@ -27,7 +28,7 @@ class _ImpactScreenState extends State<ImpactScreen> with SingleTickerProviderSt
   List<dynamic> leaderboard = [];
   List<dynamic> badges = [];
 
-  final ImpactService _service = ImpactService('https://ary-lendly-production.up.railway.app');
+  final ImpactService _service = ImpactService(EnvConfig.apiBaseUrl);
   String? userId;
 
   @override
@@ -67,7 +68,7 @@ class _ImpactScreenState extends State<ImpactScreen> with SingleTickerProviderSt
         await DataCacheManager.clearCache('impact_community');
         await DataCacheManager.clearCache('impact_leaderboard');
         await DataCacheManager.clearCache('impact_badges');
-        ApiClient.clearCacheEntry('/impact/');
+        SimpleApiClient.clearCacheEntry('/impact/');
       }
       
       // Try loading from cache first if not forcing refresh

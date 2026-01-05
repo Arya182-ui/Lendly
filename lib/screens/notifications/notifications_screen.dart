@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/session_service.dart';
-import '../../services/notification_service.dart';
+import '../../services/enhanced_notification_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -39,7 +39,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
       }
       
-      final fetchedNotifications = await NotificationService.fetchNotifications(_currentUid!);
+      final enhancedService = EnhancedNotificationService();
+      final fetchedNotifications = await enhancedService.fetchNotifications(_currentUid!);
       setState(() {
         notifications = fetchedNotifications;
         _loading = false;
@@ -56,7 +57,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_currentUid == null) return;
     
     try {
-      await NotificationService.markAsRead(_currentUid!, notificationId);
+      final enhancedService = EnhancedNotificationService();
+      await enhancedService.markAsRead(_currentUid!, notificationId);
       // Update local state
       setState(() {
         final index = notifications.indexWhere((n) => n['id'] == notificationId);
@@ -74,7 +76,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_currentUid == null) return;
     
     try {
-      await NotificationService.markAllAsRead(_currentUid!);
+      final enhancedService = EnhancedNotificationService();
+      await enhancedService.markAllAsRead(_currentUid!);
       setState(() {
         for (var notification in notifications) {
           notification['read'] = true;
@@ -117,7 +120,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     
     if (confirmed == true) {
       try {
-        await NotificationService.clearAllNotifications(_currentUid!);
+        final enhancedService = EnhancedNotificationService();
+        await enhancedService.clearAllNotifications(_currentUid!);
         setState(() => notifications.clear());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

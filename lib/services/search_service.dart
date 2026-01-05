@@ -28,7 +28,7 @@ class SearchService {
       if (excludeUid != null) 'excludeUid': excludeUid,
     };
 
-    return await ApiClient.get(
+    return await SimpleApiClient.get(
       '/items/search',
       queryParams: queryParams,
       cacheDuration: const Duration(minutes: 1),
@@ -39,7 +39,7 @@ class SearchService {
   static Future<Map<String, dynamic>> getItemsByCategories({
     int limit = 5,
   }) async {
-    return await ApiClient.get(
+    return await SimpleApiClient.get(
       '/items/categories',
       queryParams: {'limit': limit.toString()},
       cacheDuration: const Duration(minutes: 5),

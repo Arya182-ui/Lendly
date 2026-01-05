@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'dart:async';
+import '../config/env_config.dart';
 
 /// Service for student ID verification
 class VerificationService {
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
+  static String get baseUrl => EnvConfig.apiBaseUrl;
   static const _timeout = Duration(seconds: 30); // Longer for file uploads
   static const _maxFileSize = 5 * 1024 * 1024; // 5MB
   static const _allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/env_config.dart';
 import '../../services/item_service.dart';
 import '../../widgets/app_image.dart';
 import '../search/advanced_search_screen.dart';
@@ -6,7 +7,9 @@ import '../search/discovery_screen.dart';
 import 'item_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final String? initialQuery;
+  
+  const SearchScreen({super.key, this.initialQuery});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -15,7 +18,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<String> _categories = [
-    'Books', 'Tech', 'Sports', 'Tools', 'Other'
+    'Books', 'Tech', 'Sports', 'Tools', 'Gaming', 'Music', 'Electronics', 'Other'
   ];
   String _searchQuery = '';
   String? _selectedCategory;
@@ -23,11 +26,16 @@ class _SearchScreenState extends State<SearchScreen> {
   List<dynamic> _filteredItems = [];
   bool _loading = true;
   String? _error;
-  final ItemService _service = ItemService('https://ary-lendly-production.up.railway.app');
+  final ItemService _service = ItemService(EnvConfig.apiBaseUrl);
 
   @override
   void initState() {
     super.initState();
+    // Apply initial query if provided (from category selection)
+    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
+      _searchQuery = widget.initialQuery!;
+      _controller.text = widget.initialQuery!;
+    }
     _fetchItems();
   }
 

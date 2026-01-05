@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'api_client.dart';
 import 'package:http/http.dart' as http;
+import 'firebase_auth_service.dart';
 
 /// Item management service with validation and error handling
 class ItemService {
@@ -58,6 +60,10 @@ class ItemService {
         await _validateImage(imageFile);
         
         var request = http.MultipartRequest('PUT', uri);
+        final token = await FirebaseAuthService().getIdToken();
+        if (token != null) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
         request.fields['ownerId'] = ownerId;
         if (name != null) request.fields['name'] = name;
         if (description != null) request.fields['description'] = description;
@@ -83,9 +89,13 @@ class ItemService {
           if (available != null) 'available': available.toString(),
         };
         
+        final token = await FirebaseAuthService().getIdToken();
+        final headers = <String, String>{'Content-Type': 'application/json'};
+        if (token != null) headers['Authorization'] = 'Bearer $token';
+
         final res = await http.put(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: headers,
           body: json.encode(body),
         ).timeout(_timeout);
         
@@ -110,7 +120,11 @@ class ItemService {
     
     try {
       final uri = Uri.parse('$baseUrl/items/$id?ownerId=$ownerId');
-      final res = await http.delete(uri).timeout(const Duration(seconds: 15));
+      final token = await FirebaseAuthService().getIdToken();
+      final headers = <String, String>{};
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+
+      final res = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 15));
       
       if (res.statusCode == 200) return;
       throw ItemServiceException(_parseError(res.body, 'Failed to delete item'));
@@ -163,6 +177,10 @@ class ItemService {
       
       var uri = Uri.parse('$baseUrl/items');
       var request = http.MultipartRequest('POST', uri);
+      final token = await FirebaseAuthService().getIdToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       request.fields['name'] = name.trim();
       request.fields['description'] = description.trim();
       request.fields['category'] = category;
@@ -190,13 +208,13 @@ class ItemService {
   /// Get all items
   Future<List<dynamic>> getItems() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/items')).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) return json.decode(res.body);
-      throw ItemServiceException(_parseError(res.body, 'Failed to fetch items'));
-    } on TimeoutException {
-      throw ItemServiceException('Request timed out. Please try again.');
-    } on SocketException {
-      throw ItemServiceException('No internet connection.');
+      // Use authenticated client to include Firebase token
+      final data = await SimpleApiClient.get('/items');
+      if (data is List) return List<dynamic>.from(data);
+      if (data is Map && data['items'] is List) return List<dynamic>.from(data['items']);
+      return <dynamic>[];
+    } catch (e) {
+      throw ItemServiceException(e.toString());
     }
   }
 

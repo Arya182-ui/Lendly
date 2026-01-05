@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lendly/services/session_service.dart';
-import 'package:lendly/services/auth_service.dart';
+import 'package:lendly/services/api_client.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'friend_requests_screen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../widgets/avatar_options.dart';
 import 'profile/public_profile_screen.dart';
+
+import '../config/env_config.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({Key? key}) : super(key: key);
@@ -41,19 +41,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
       return;
     }
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/friends?uid=$myUid'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isError = true;
-          isLoading = false;
-        });
-      }
+      final data = await SimpleApiClient.get(
+        '/user/friends',
+        queryParams: {'uid': myUid!},
+        requiresAuth: true,
+      );
+      setState(() {
+        friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+        isLoading = false;
+      });
     } catch (e) {
       setState(() {
         isError = true;
@@ -66,8 +62,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Friends')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(
+          title: const Text('Friends'),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF1a237e),
+          elevation: 0.5,
+        ),
+        body: _buildFriendsSkeletonLoader(),
       );
     }
     if (isError) {
@@ -93,6 +94,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Friends'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1a237e),
+        elevation: 0.5,
         leading: Navigator.canPop(context)
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -105,7 +109,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
             : null,
       ),
       body: Container(
-        color: Colors.grey[100],
+        width: double.infinity,
+        color: Colors.grey[50],
         child: Column(
           children: [
             if (myUid != null)
@@ -141,7 +146,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                       ],
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       itemCount: friends.length,
                       itemBuilder: (context, i) {
                         final f = friends[i];
@@ -150,50 +155,66 @@ class _FriendsScreenState extends State<FriendsScreen> {
                         final college = f['college'] ?? '';
                         final uid = f['uid'] ?? '';
                         Widget avatarWidget;
-                        if (avatar.endsWith('.svg')) {
+                        if (avatar.endsWith('.svg') && avatar.isNotEmpty) {
                           avatarWidget = Container(
-                            width: 48,
-                            height: 48,
+                            width: 56,
+                            height: 56,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.grey[200],
-                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(6.0),
+                              padding: const EdgeInsets.all(4.0),
                               child: SvgPicture.asset(avatar, fit: BoxFit.contain),
                             ),
                           );
                         } else if (avatar.isNotEmpty) {
                           avatarWidget = CircleAvatar(
-                            radius: 24,
+                            radius: 28,
                             backgroundColor: Colors.grey[200],
                             backgroundImage: AssetImage(avatar),
                           );
                         } else {
                           avatarWidget = CircleAvatar(
-                            radius: 24,
-                            backgroundColor: Colors.green[700],
-                            child: const Icon(Icons.person, color: Colors.white, size: 28),
+                            radius: 28,
+                            backgroundColor: const Color(0xFF1DBF73),
+                            child: const Icon(Icons.person, color: Colors.white, size: 32),
                           );
                         }
                         return Card(
-                          elevation: 2,
+                          elevation: 1,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                          child: ListTile(
-                            leading: avatarWidget,
-                            title: Text(name.isNotEmpty ? name : 'No name', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(college.isNotEmpty ? college : 'No college info'),
-                            trailing: Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey[400]),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PublicProfileScreen(uid: uid),
-                                ),
-                              );
-                            },
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.white, Colors.grey[50]!],
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: avatarWidget,
+                              title: Text(
+                                name.isNotEmpty ? name : 'User',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              subtitle: Text(
+                                college.isNotEmpty ? college : 'No college info',
+                                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                              ),
+                              trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PublicProfileScreen(uid: uid),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         );
                       },
@@ -201,6 +222,76 @@ class _FriendsScreenState extends State<FriendsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFriendsSkeletonLoader() {
+    return Container(
+      width: double.infinity,
+      color: Colors.grey[50],
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  // Avatar skeleton
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Text skeleton
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 200,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Arrow skeleton
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

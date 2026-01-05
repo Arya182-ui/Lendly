@@ -153,12 +153,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                       throw Exception('User not logged in');
                                     }
                                     print('Creating group with: name=$groupName, type=$groupType, description=$description, createdBy=$uid');
-                                    await GroupService.createGroup(
-                                      name: groupName,
-                                      type: groupType,
-                                      description: description,
-                                      createdBy: uid,
-                                    );
+                                    final groupService = GroupService();
+                                    await groupService.createGroup({
+                                      'name': groupName,
+                                      'type': groupType,
+                                      'description': description,
+                                      'createdBy': uid,
+                                    });
                                     if (mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(content: Text('Group created!')),

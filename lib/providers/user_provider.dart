@@ -30,4 +30,25 @@ class UserProvider extends ChangeNotifier {
     verificationStatus = status;
     notifyListeners();
   }
+
+  void setAvatar(String? newAvatar) {
+    avatar = newAvatar;
+    notifyListeners();
+  }
+
+  void setName(String? newName) {
+    name = newName;
+    notifyListeners();
+  }
+
+  void setProfile({
+    String? newName,
+    String? newCollege,
+    String? newAvatar,
+  }) {
+    if (newName != null) name = newName;
+    if (newCollege != null) college = newCollege;
+    if (newAvatar != null) avatar = newAvatar;
+    notifyListeners();
+  }
 }
