@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:convert';
+import '../services/api_client.dart';
+import '../config/env_config.dart';
 
 class FriendRequestsScreen extends StatefulWidget {
   final String? myUid;
@@ -28,19 +28,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
       isError = false;
     });
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/friends?uid=${widget.myUid}'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          friendRequests = (data['friendRequests'] ?? []) is List ? List<Map<String, dynamic>>.from(data['friendRequests']) : [];
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isError = true;
-          isLoading = false;
-        });
-      }
+      final data = await SimpleApiClient.get(
+        '/user/friends',
+        queryParams: {'uid': widget.myUid ?? ''},
+        requiresAuth: true,
+      );
+      setState(() {
+        friendRequests = (data['friendRequests'] ?? []) is List ? List<Map<String, dynamic>>.from(data['friendRequests']) : [];
+        isLoading = false;
+      });
     } catch (e) {
       setState(() {
         isError = true;
@@ -54,10 +50,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
     if (accept) {
       // Accept friend request
       try {
-        await http.post(
-          Uri.parse('https://ary-lendly-production.up.railway.app/user/accept-friend-request'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'fromUid': requestUid, 'toUid': widget.myUid}),
+        await SimpleApiClient.post(
+          '/user/accept-friend-request',
+          body: {'fromUid': requestUid, 'toUid': widget.myUid},
+          requiresAuth: true,
         );
         setState(() {
           friendRequests.removeWhere((r) => r['uid'] == requestUid);
@@ -68,10 +64,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
     } else {
       // Reject friend request (delete request)
       try {
-        await http.post(
-          Uri.parse('https://ary-lendly-production.up.railway.app/user/reject-friend-request'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'fromUid': requestUid, 'toUid': widget.myUid}),
+        await SimpleApiClient.post(
+          '/user/reject-friend-request',
+          body: {'fromUid': requestUid, 'toUid': widget.myUid},
+          requiresAuth: true,
         );
         setState(() {
           friendRequests.removeWhere((r) => r['uid'] == requestUid);

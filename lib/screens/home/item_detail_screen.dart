@@ -6,6 +6,7 @@ import 'package:lendly/widgets/app_image.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../../config/env_config.dart';
 import '../../services/item_service.dart';
 import '../../services/session_service.dart';
 import 'edit_item_screen.dart';
@@ -145,7 +146,7 @@ class ItemDetailScreen extends StatelessWidget {
     double? proposedPrice,
   }) async {
     final response = await http.post(
-      Uri.parse('https://ary-lendly-production.up.railway.app/transactions/request'),
+      Uri.parse('${EnvConfig.apiBaseUrl}/transactions/request'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'requesterId': requesterId,
@@ -177,7 +178,7 @@ class ItemDetailScreen extends StatelessWidget {
     final ownerId = item['ownerId'] ?? '';
     final currentUid = ModalRoute.of(context)?.settings.arguments as String?;
     final isOwner = currentUid != null && ownerId == currentUid;
-    final itemService = ItemService('https://ary-lendly-production.up.railway.app');
+    final itemService = ItemService(EnvConfig.apiBaseUrl);
 
     return Scaffold(
       appBar: AppBar(

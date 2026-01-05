@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../config/env_config.dart';
 
 /// Service for submitting issue reports
 class IssueReportService {
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
+  static String get baseUrl => EnvConfig.apiBaseUrl;
   static const _timeout = Duration(seconds: 12);
   static const _maxMessageLength = 5000;
 

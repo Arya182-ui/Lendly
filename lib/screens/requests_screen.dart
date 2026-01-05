@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../services/api_client.dart';
 import '../services/session_service.dart';
 import '../widgets/rating_dialog.dart';
+import '../config/env_config.dart';
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({Key? key}) : super(key: key);
 
@@ -17,7 +18,7 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
   bool loading = true;
   String? error;
   String? currentUid;
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
+  static String get baseUrl => EnvConfig.apiBaseUrl;
 
   String? get _currentUid => currentUid;
 
@@ -43,24 +44,17 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
         return;
       }
 
-      final response = await http.get(
-        Uri.parse('https://ary-lendly-production.up.railway.app/transactions/my/$currentUid'),
+      final data = await SimpleApiClient.get(
+        '/transactions/my/$currentUid',
+        requiresAuth: true,
       );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        setState(() {
-          sentRequests = data.where((t) => t['role'] == 'requester').cast<Map<String, dynamic>>().toList();
-          receivedRequests = data.where((t) => t['role'] == 'owner').cast<Map<String, dynamic>>().toList();
-          loading = false;
-          error = null;
-        });
-      } else {
-        setState(() {
-          error = 'Failed to load requests';
-          loading = false;
-        });
-      }
+      final List<dynamic> list = data is List ? data : (data['transactions'] ?? []);
+      setState(() {
+        sentRequests = list.where((t) => t['role'] == 'requester').cast<Map<String, dynamic>>().toList();
+        receivedRequests = list.where((t) => t['role'] == 'owner').cast<Map<String, dynamic>>().toList();
+        loading = false;
+        error = null;
+      });
     } catch (e) {
       setState(() {
         error = 'Error: $e';
@@ -71,28 +65,23 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
 
   Future<void> _respondToRequest(String transactionId, String action, String? message) async {
     try {
-      final response = await http.post(
-        Uri.parse('https://ary-lendly-production.up.railway.app/transactions/$transactionId/respond'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      await SimpleApiClient.post(
+        '/transactions/$transactionId/respond',
+        body: {
           'ownerId': currentUid,
           'action': action,
           if (message != null && message.isNotEmpty) 'message': message,
-        }),
+        },
+        requiresAuth: true,
       );
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Request ${action}ed successfully'),
-            backgroundColor: action == 'accept' ? Colors.green : Colors.orange,
-          ),
-        );
-        _loadRequests(); // Refresh the list
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'Failed to $action request');
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request ${action}ed successfully'),
+          backgroundColor: action == 'accept' ? Colors.green : Colors.orange,
+        ),
+      );
+      _loadRequests(); // Refresh the list
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -105,28 +94,23 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
 
   Future<void> _completeTransaction(String transactionId, int? rating, String? review) async {
     try {
-      final response = await http.post(
-        Uri.parse('https://ary-lendly-production.up.railway.app/transactions/$transactionId/complete'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      await SimpleApiClient.post(
+        '/transactions/$transactionId/complete',
+        body: {
           'userId': currentUid,
           if (rating != null) 'rating': rating,
           if (review != null && review.isNotEmpty) 'review': review,
-        }),
+        },
+        requiresAuth: true,
       );
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transaction completed successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadRequests(); // Refresh the list
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'Failed to complete transaction');
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Transaction completed successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadRequests(); // Refresh the list
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -245,29 +229,24 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
 
   Future<void> _completeTransactionWithRating(String requestId, Map<String, dynamic> request) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/transactions/$requestId/complete'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      await SimpleApiClient.post(
+        '/transactions/$requestId/complete',
+        body: {
           'userId': _currentUid,
-        }),
+        },
+        requiresAuth: true,
       );
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transaction completed successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadRequests(); // Refresh the list
-        
-        // Show rating dialog after successful completion
-        _showRatingDialog(request);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'Failed to complete transaction');
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Transaction completed successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadRequests(); // Refresh the list
+      
+      // Show rating dialog after successful completion
+      _showRatingDialog(request);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

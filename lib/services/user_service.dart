@@ -7,7 +7,7 @@ class UserService {
     if (uid.isEmpty) return null;
     
     try {
-      return await ApiClient.get(
+      return await SimpleApiClient.get(
         '/user/public-profile',
         queryParams: {'uid': uid},
         cacheDuration: const Duration(minutes: 5),
@@ -36,6 +36,6 @@ class UserService {
   
   /// Clear user profile cache
   static void clearProfileCache(String uid) {
-    ApiClient.invalidateUserCache(uid);
+    SimpleApiClient.invalidateUserCache();
   }
 }

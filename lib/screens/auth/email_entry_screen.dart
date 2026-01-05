@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
-import 'otp_input_screen.dart';
+import '../../services/firebase_auth_service.dart';
 
 class EmailEntryScreen extends StatefulWidget {
   const EmailEntryScreen({super.key});
@@ -21,17 +20,17 @@ class _EmailEntryScreenState extends State<EmailEntryScreen> {
       setState(() { _loading = false; _error = 'Email required'; });
       return;
     }
-    final res = await AuthService.sendOtp(email);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpInputScreen(email: email),
-        ),
+    try {
+      final firebaseAuth = FirebaseAuthService();
+      await firebaseAuth.sendPasswordResetEmail(email);
+      setState(() { _loading = false; });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent!')),
       );
-    } else {
-      setState(() { _error = res['error'] ?? 'Failed to send OTP'; });
+      Navigator.pop(context);
+    } catch (e) {
+      setState(() { _loading = false; _error = e.toString().replaceAll('Exception: ', ''); });
     }
   }
 

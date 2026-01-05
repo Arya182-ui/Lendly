@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
+import '../../services/firebase_auth_service.dart';
 
 class SetNewPasswordScreen extends StatefulWidget {
   final String uid;
@@ -27,13 +27,20 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
       setState(() { _loading = false; _error = 'Passwords do not match'; });
       return;
     }
-    final res = await AuthService.setPassword(widget.uid, password);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successful! Please login.')));
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    } else {
-      setState(() { _error = res['error'] ?? 'Failed to reset password'; });
+    try {
+      final firebaseAuth = FirebaseAuthService();
+      final currentUser = firebaseAuth.currentUser;
+      if (currentUser != null) {
+        await currentUser.updatePassword(password);
+        setState(() { _loading = false; });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successful! Please login.')));
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else {
+        setState(() { _loading = false; _error = 'User not authenticated'; });
+      }
+    } catch (e) {
+      setState(() { _loading = false; _error = e.toString().replaceAll('Exception: ', ''); });
     }
   }
 

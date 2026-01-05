@@ -1,10 +1,9 @@
-
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'signup_screen.dart';
 import 'welcome_screen.dart';
-import '../../services/auth_service.dart';
-import 'otp_input_screen.dart';
+import '../../services/firebase_auth_service.dart';
 import '../../main.dart';
 import '../../services/session_service.dart';
 
@@ -15,13 +14,29 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
-  bool _loginWithPassword = true;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker((elapsed) {
+      // Ticker for animations if needed
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,68 +65,48 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 10),
               Image.asset('assets/images/login_illustration.png', height: 120), // Smaller illustration
               const SizedBox(height: 18), // Less space below illustration
-              // Toggle for login method
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Password'),
-                    selected: _loginWithPassword,
-                    onSelected: (v) => setState(() => _loginWithPassword = true),
-                  ),
-                  const SizedBox(width: 12),
-                  ChoiceChip(
-                    label: const Text('OTP'),
-                    selected: !_loginWithPassword,
-                    onSelected: (v) => setState(() => _loginWithPassword = false),
-                  ),
-                ],
-              ),
               const SizedBox(height: 24),
               TextField(
                 controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'Email',
                   prefixIcon: const Icon(Icons.email_outlined),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  errorText: _error,
                 ),
               ),
-              if (_loginWithPassword) ...[
-                const SizedBox(height: 18),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _onForgotPassword,
-                    child: const Text('Forgot Password?'),
-                  ),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _onForgotPassword,
+                  child: const Text('Forgot Password?'),
                 ),
-              ],
+              ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : ElevatedButton(
-                        onPressed: _loginWithPassword ? _loginWithPasswordMethod : _sendOtp,
+                        onPressed: _loginWithPasswordMethod,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1DBF73),
                           foregroundColor: Colors.white,
@@ -121,9 +116,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           elevation: 3,
                         ),
-                        child: Text(
-                          _loginWithPassword ? 'Login' : 'Login with OTP',
-                          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white),
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
               ),
@@ -158,27 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _sendOtp() async {
-    setState(() { _loading = true; _error = null; });
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      setState(() { _loading = false; _error = 'Email required'; });
-      return;
-    }
-    final res = await AuthService.sendOtp(email);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpInputScreen(email: email, isLogin: true, otpId: res['otpId']),
-        ),
-      );
-    } else {
-      setState(() { _error = res['error'] ?? 'Failed to send OTP'; });
-    }
-  }
-
   Future<void> _loginWithPasswordMethod() async {
     setState(() { _loading = true; _error = null; });
     final email = _emailController.text.trim();
@@ -187,26 +164,52 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _loading = false; _error = 'Email and password required'; });
       return;
     }
-    final res = await AuthService.loginWithPassword(email, password);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      // Save session, navigate to AppRoot (main layout with bottom nav)
-      if (res['uid'] != null) {
-        await SessionService.setUid(res['uid']);
+    
+    try {
+      final firebaseAuth = FirebaseAuthService();
+      final user = await firebaseAuth.signIn(email, password);
+      
+      if (user?.user != null) {
+        // Save session using both new and old methods for compatibility
+        await SessionService.setUid(user!.user!.uid);
         
         // Also update SharedPreferences directly as backup
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('uid', res['uid']);
+        await prefs.setString('uid', user.user!.uid);
         await prefs.setBool('is_logged_in', true);
+        
+        setState(() { _loading = false; });
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => AppRoot()),
+          (route) => false,
+        );
       }
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => AppRoot()),
-        (route) => false,
-      );
-    } else {
-      setState(() { _error = res['error'] ?? 'Login failed'; });
+    } catch (e) {
+      String errorMessage = 'Login failed. Please try again.';
+      
+      // Handle Firebase Auth exceptions with user-friendly messages
+      if (e.toString().contains('invalid-credential')) {
+        errorMessage = 'User not found or incorrect password.';
+      } else if (e.toString().contains('user-not-found')) {
+        errorMessage = 'No account found with this email.';
+      } else if (e.toString().contains('wrong-password')) {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (e.toString().contains('invalid-email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e.toString().contains('user-disabled')) {
+        errorMessage = 'This account has been disabled.';
+      } else if (e.toString().contains('too-many-requests')) {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (e.toString().contains('network-request-failed')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      setState(() { 
+        _loading = false; 
+        _error = errorMessage; 
+      });
     }
   }
 
@@ -217,17 +220,39 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     setState(() { _loading = true; _error = null; });
-    final res = await AuthService.sendOtp(email);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpInputScreen(email: email, isLogin: true, otpId: res['otpId']),
-        ),
-      );
-    } else {
-      setState(() { _error = res['error'] ?? 'Failed to send OTP'; });
+    
+    try {
+      final firebaseAuth = FirebaseAuthService();
+      await firebaseAuth.sendPasswordResetEmail(email);
+      
+      setState(() { _loading = false; });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset email sent! Check your inbox.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      String errorMessage = 'Password reset failed. Please try again.';
+      
+      // Handle Firebase Auth exceptions with user-friendly messages
+      if (e.toString().contains('user-not-found')) {
+        errorMessage = 'No account found with this email address.';
+      } else if (e.toString().contains('invalid-email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e.toString().contains('too-many-requests')) {
+        errorMessage = 'Too many requests. Please try again later.';
+      } else if (e.toString().contains('network-request-failed')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      setState(() { 
+        _loading = false; 
+        _error = errorMessage; 
+      });
     }
   }
 }

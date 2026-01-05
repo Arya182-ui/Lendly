@@ -59,6 +59,11 @@ class SessionService {
     }
   }
 
+  /// Alias for getUid for backward compatibility
+  static Future<String?> getUserId() async {
+    return getUid();
+  }
+
   /// Set current user's UID
   static Future<bool> setUid(String uid) async {
     if (uid.isEmpty) return false;
@@ -83,9 +88,30 @@ class SessionService {
       final prefs = await _getPrefs();
       _verificationStatus = 'unknown';
       await prefs.remove(_verificationStatusKey);
+      await prefs.remove('auth_token');
       return await prefs.remove(_uidKey);
     } catch (e) {
       return false;
+    }
+  }
+  
+  /// Get authentication token
+  static Future<String?> getToken() async {
+    try {
+      final prefs = await _getPrefs();
+      return prefs.getString('auth_token');
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  /// Set authentication token
+  static Future<void> setToken(String token) async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setString('auth_token', token);
+    } catch (_) {
+      // Silently fail - not critical
     }
   }
   

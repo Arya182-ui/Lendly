@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'providers/user_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme_notifier.dart';
@@ -21,17 +23,50 @@ import 'screens/notifications/notifications_screen.dart';
 import 'screens/impact/impact_screen.dart';
 import 'screens/requests_screen.dart';
 import 'services/session_service.dart';
+import 'services/app_initializer.dart';
+import 'services/firebase_auth_service.dart';
+import 'services/api_client.dart';
+import 'services/app_logger.dart';
+import 'services/connectivity_service.dart';
+import 'config/env_config.dart';
 
-import 'services/home_service.dart';
 
 
-
-void main() {
+void main() async {
+  // Ensure Flutter bindings are initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Load environment configuration
+    await EnvConfig.load();
+    
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    // Initialize Firebase Auth Service
+    await FirebaseAuthService().initialize();
+    
+    // Initialize API Client
+    await ApiClient().initialize();
+    
+    // Initialize all app services
+    await AppInitializer.initialize();
+    
+    logger.info('App initialization completed successfully', tag: 'Main');
+  } catch (e) {
+    logger.error('App initialization failed', tag: 'Main', data: {'error': e.toString()});
+    // Continue anyway, the app can work with some services failing
+    debugPrint('Initialization error: $e');
+  }
+  
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeNotifier()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityService()),
       ],
       child: const MyApp(),
     ),
@@ -80,18 +115,25 @@ class _SplashDeciderState extends State<SplashDecider> {
   void initState() {
     super.initState();
     _checkFirstLaunchAndSession();
-    _syncUserProviderUid();
+    // Defer provider updates using microtask to ensure it runs after build completes
+    Future.microtask(() {
+      if (mounted) {
+        _syncUserProviderUid();
+      }
+    });
   }
 
   Future<void> _syncUserProviderUid() async {
-    // Load verification status from storage first
-    await SessionService.loadVerificationStatus();
+    // Check Firebase auth state first
+    final firebaseAuth = FirebaseAuthService();
+    final currentUser = firebaseAuth.currentUser;
     
-    final uid = await SessionService.getUid();
-    if (uid != null && uid.isNotEmpty) {
+    if (currentUser != null) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      userProvider.setUid(uid);
-      // Sync verification status from SessionService
+      userProvider.setUid(currentUser.uid);
+      
+      // Load verification status from storage
+      await SessionService.loadVerificationStatus();
       userProvider.setVerificationStatus(SessionService.verificationStatus);
     }
   }
@@ -107,11 +149,11 @@ class _SplashDeciderState extends State<SplashDecider> {
         setState(() { _firstLaunch = true; _loggedIn = false; });
         return;
       }
-      // Check session using SessionService with timeout
-      final isLoggedIn = await SessionService.isLoggedIn().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => false,
-      );
+      
+      // Check Firebase auth state instead of old SessionService
+      final firebaseAuth = FirebaseAuthService();
+      final isLoggedIn = firebaseAuth.currentUser != null;
+      
       setState(() {
         _firstLaunch = false;
         _loggedIn = isLoggedIn;
@@ -240,7 +282,7 @@ class _CustomBottomNav extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -275,7 +317,7 @@ class _CustomBottomNav extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1DBF73).withOpacity(0.2),
+                        color: const Color(0xFF1DBF73).withValues(alpha: 0.2),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),

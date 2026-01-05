@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/env_config.dart';
 
 class RatingService {
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
+  static String get baseUrl => EnvConfig.apiBaseUrl;
   static const Duration timeout = Duration(seconds: 10);
 
   /// Submit a rating for a user

@@ -1,10 +1,14 @@
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';import 'package:lendly/widgets/app_image.dart';import 'package:socket_io_client/socket_io_client.dart' as IO;
+import '../../providers/user_provider.dart';
+import 'package:lendly/widgets/app_image.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'chat_screen.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../../services/api_client.dart';
+
+import '../../config/env_config.dart';
 
 class MessagesScreen extends StatefulWidget {
 	const MessagesScreen({super.key});
@@ -204,63 +208,108 @@ class _MessagesScreenState extends State<MessagesScreen> {
 		).toList();
 
 		return Scaffold(
-			backgroundColor: const Color(0xFFF8FAFB),
+			backgroundColor: const Color(0xFFF8FAFC),
 			appBar: AppBar(
 				backgroundColor: Colors.white,
-				elevation: 0.5,
+				elevation: 0,
+				scrolledUnderElevation: 0.5,
 				leading: Navigator.canPop(context)
 						? IconButton(
-								icon: const Icon(Icons.arrow_back, color: Color(0xFF1a237e)),
+								icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E293B), size: 20),
 								onPressed: () => Navigator.of(context).pop(),
 							)
 						: null,
-				title: const Text('Chats', style: TextStyle(color: Color(0xFF1a237e), fontWeight: FontWeight.bold)),
+				title: const Text(
+					'Messages',
+					style: TextStyle(
+						color: Color(0xFF1E293B),
+						fontWeight: FontWeight.w700,
+						fontSize: 20,
+						letterSpacing: -0.3,
+					),
+				),
 				centerTitle: true,
+				actions: [
+					IconButton(
+						icon: Container(
+							padding: const EdgeInsets.all(8),
+							decoration: BoxDecoration(
+								color: const Color(0xFF1DBF73).withValues(alpha: 0.1),
+								shape: BoxShape.circle,
+							),
+							child: const Icon(Icons.edit_rounded, color: Color(0xFF1DBF73), size: 18),
+						),
+						onPressed: () {
+							// New chat functionality
+						},
+					),
+					const SizedBox(width: 8),
+				],
 			),
 			body: Column(
 				children: [
 					// Search bar
 					Padding(
-						padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+						padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
 						child: Container(
 							decoration: BoxDecoration(
 								color: Colors.white,
-								borderRadius: BorderRadius.circular(14),
+								borderRadius: BorderRadius.circular(16),
+								border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
 								boxShadow: [
 									BoxShadow(
-										color: Colors.grey.withOpacity(0.08),
-										blurRadius: 8,
-										offset: const Offset(0, 2),
+										color: Colors.black.withValues(alpha: 0.04),
+										blurRadius: 10,
+										offset: const Offset(0, 4),
 									),
 								],
 							),
 							child: TextField(
 								onChanged: (val) => setState(() => search = val),
-								decoration: const InputDecoration(
-									hintText: 'Search chats',
+								decoration: InputDecoration(
+									hintText: 'Search conversations...',
+									hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
 									border: InputBorder.none,
-									prefixIcon: Icon(Icons.search, color: Color(0xFF1a237e)),
-									contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+									prefixIcon: Padding(
+										padding: const EdgeInsets.all(12),
+										child: Container(
+											padding: const EdgeInsets.all(8),
+											decoration: BoxDecoration(
+												color: const Color(0xFF1DBF73).withValues(alpha: 0.1),
+												borderRadius: BorderRadius.circular(10),
+											),
+											child: const Icon(Icons.search_rounded, color: Color(0xFF1DBF73), size: 18),
+										),
+									),
+									contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
 								),
-								style: const TextStyle(fontSize: 15),
+								style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B)),
 							),
 						),
 					),
 					       Expanded(
 						       child: isLoading
-							       ? const Center(
+							       ? Center(
 							           child: Column(
 							             mainAxisAlignment: MainAxisAlignment.center,
 							             children: [
-							               CircularProgressIndicator(
-							                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1DBF73)),
+							               Container(
+							                 padding: const EdgeInsets.all(20),
+							                 decoration: BoxDecoration(
+							                   color: const Color(0xFF1DBF73).withValues(alpha: 0.1),
+							                   shape: BoxShape.circle,
+							                 ),
+							                 child: const CircularProgressIndicator(
+							                   valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1DBF73)),
+							                   strokeWidth: 3,
+							                 ),
 							               ),
-							               SizedBox(height: 16),
-							               Text(
-							                 'Loading chats...',
+							               const SizedBox(height: 20),
+							               const Text(
+							                 'Loading conversations...',
 							                 style: TextStyle(
-							                   color: Color(0xFF1a237e),
-							                   fontSize: 16,
+							                   color: Color(0xFF64748B),
+							                   fontSize: 15,
 							                   fontWeight: FontWeight.w500,
 							                 ),
 							               ),
@@ -272,11 +321,44 @@ class _MessagesScreenState extends State<MessagesScreen> {
 									       child: Column(
 										       mainAxisAlignment: MainAxisAlignment.center,
 										       children: [
-											       Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[400]),
-											       const SizedBox(height: 16),
-											       Text('No friends or groups yet!', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w600)),
+											       Container(
+											         padding: const EdgeInsets.all(24),
+											         decoration: BoxDecoration(
+											           color: const Color(0xFFEC4899).withValues(alpha: 0.1),
+											           shape: BoxShape.circle,
+											         ),
+											         child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Color(0xFFEC4899)),
+											       ),
+											       const SizedBox(height: 24),
+											       const Text(
+											         'No conversations yet',
+											         style: TextStyle(
+											           fontSize: 20,
+											           color: Color(0xFF1E293B),
+											           fontWeight: FontWeight.w700,
+											         ),
+											       ),
 											       const SizedBox(height: 8),
-											       Text('Start by connecting with friends or joining a group.', style: TextStyle(fontSize: 15, color: Colors.grey[500])),
+											       Text(
+											         'Start by connecting with friends\\nor joining a group',
+											         style: TextStyle(fontSize: 14, color: Colors.grey[500], height: 1.5),
+											         textAlign: TextAlign.center,
+											       ),
+											       const SizedBox(height: 24),
+											       ElevatedButton.icon(
+											         onPressed: () {
+											           // Navigate to friends or groups
+											         },
+											         icon: const Icon(Icons.person_add_rounded, size: 18),
+											         label: const Text('Find Friends'),
+											         style: ElevatedButton.styleFrom(
+											           backgroundColor: const Color(0xFF1DBF73),
+											           foregroundColor: Colors.white,
+											           elevation: 0,
+											           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+											           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+											         ),
+											       ),
 										       ],
 									       ),
 								       )
@@ -333,6 +415,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
 												leading: Stack(
 													children: [
 														RobustAvatar(url: c['avatar'], radius: 26),
+														// Group icon badge
+														Positioned(
+															right: 0,
+															top: 0,
+															child: Container(
+																padding: const EdgeInsets.all(3),
+																decoration: BoxDecoration(
+																	color: const Color(0xFF7C3AED),
+																	shape: BoxShape.circle,
+																	border: Border.all(color: Colors.white, width: 2),
+																),
+																child: const Icon(
+																	Icons.group,
+																	size: 12,
+																	color: Colors.white,
+																),
+															),
+														),
 														if (c['unread'] ?? false)
 															Positioned(
 																right: 0,
@@ -351,13 +451,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
 												),
 												title: Row(
 													children: [
+														const Icon(
+															Icons.group_rounded,
+															size: 16,
+															color: Color(0xFF7C3AED),
+														),
+														const SizedBox(width: 6),
 														Expanded(
 															child: Text(
 																c['name'] ?? '',
 																style: TextStyle(
 																	fontWeight: (c['unread'] ?? false) ? FontWeight.bold : FontWeight.w600,
 																	fontSize: 16,
-																	color: const Color(0xFF1a237e),
+																	color: const Color(0xFF7C3AED),
 																),
 															),
 														),
@@ -374,12 +480,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
 															margin: const EdgeInsets.only(top: 2, bottom: 2),
 															padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
 															decoration: BoxDecoration(
-																color: const Color(0xFFE8F9F1),
+																color: const Color(0xFFF3E8FF),
 																borderRadius: BorderRadius.circular(8),
 															),
-															child: Text(
-																c['context'] ?? '',
-																style: const TextStyle(fontSize: 12, color: Color(0xFF1DBF73), fontWeight: FontWeight.w600),
+															child: Row(
+																mainAxisSize: MainAxisSize.min,
+																children: [
+																	const Icon(Icons.groups_rounded, size: 10, color: Color(0xFF7C3AED)),
+																	const SizedBox(width: 4),
+																	Text(
+																		'Group Chat',
+																		style: const TextStyle(fontSize: 11, color: Color(0xFF7C3AED), fontWeight: FontWeight.w700),
+																	),
+																],
 															),
 														),
 														Text(
@@ -398,14 +511,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
 													Navigator.push(
 														context,
 														MaterialPageRoute(
-															builder: (_) => ChatScreen(
-																name: c['name'] ?? '',
-																contextLabel: 'Group',
-																avatarUrl: c['avatar'] ?? '',
+															builder: (_) => EnhancedChatScreen(
+																chatId: c['id'] ?? '',
+																peerUid: c['id'] ?? c['groupId'] ?? c['peerUid'] ?? '',
+																peerName: c['name'] ?? '',
+																peerAvatar: c['avatar'] ?? '',
 																isGroup: true,
-																trust: true, // You can set this based on your data
-																currentUid: currentUid,
-																  peerUid: c['id'] ?? c['groupId'] ?? c['peerUid'] ?? '', // Use id/groupId for group chats
 															),
 														),
 													);
@@ -419,9 +530,37 @@ class _MessagesScreenState extends State<MessagesScreen> {
 											color: Colors.white,
 											shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
 											child: ListTile(
-												leading: RobustAvatar(url: c['avatar'], radius: 26),
+												leading: Stack(
+													children: [
+														RobustAvatar(url: c['avatar'], radius: 26),
+														// Personal chat indicator
+														Positioned(
+															right: 0,
+															top: 0,
+															child: Container(
+																padding: const EdgeInsets.all(3),
+																decoration: BoxDecoration(
+																	color: const Color(0xFF1DBF73),
+																	shape: BoxShape.circle,
+																	border: Border.all(color: Colors.white, width: 2),
+																),
+																child: const Icon(
+																	Icons.person,
+																	size: 12,
+																	color: Colors.white,
+																),
+															),
+														),
+													],
+												),
 												title: Row(
 													children: [
+														const Icon(
+															Icons.person_outline_rounded,
+															size: 16,
+															color: Color(0xFF1DBF73),
+														),
+														const SizedBox(width: 6),
 														Expanded(
 															child: Text(
 																c['name'],
@@ -448,9 +587,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
 																color: const Color(0xFFE8F9F1),
 																borderRadius: BorderRadius.circular(8),
 															),
-															child: Text(
-																c['context'],
-																style: const TextStyle(fontSize: 12, color: Color(0xFF1DBF73), fontWeight: FontWeight.w600),
+															child: Row(
+																mainAxisSize: MainAxisSize.min,
+																children: [
+																	const Icon(Icons.chat_bubble_outline_rounded, size: 10, color: Color(0xFF1DBF73)),
+																	const SizedBox(width: 4),
+																	Text(
+																		'Direct Chat',
+																		style: const TextStyle(fontSize: 11, color: Color(0xFF1DBF73), fontWeight: FontWeight.w700),
+																	),
+																],
 															),
 														),
 														Text(
@@ -472,14 +618,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
 													Navigator.push(
 														context,
 														MaterialPageRoute(
-															builder: (_) => ChatScreen(
-																name: c['name'],
-																contextLabel: c['context'],
-																avatarUrl: c['avatar'],
+															builder: (_) => EnhancedChatScreen(
+																chatId: c['chatId'] ?? '',
+																peerUid: c['uid'] ?? '',
+																peerName: c['name'] ?? '',
+																peerAvatar: c['avatar'] ?? '',
 																isGroup: false,
-																trust: true,
-																currentUid: currentUid,
-																peerUid: c['peerUid'],
 															),
 														),
 													);
@@ -496,33 +640,39 @@ class _MessagesScreenState extends State<MessagesScreen> {
 	}
 
 	Future<List<Map<String, dynamic>>> fetchFriends(String uid) async {
-		final response = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/friends?uid=$uid'));
-		if (response.statusCode == 200) {
-			final data = jsonDecode(response.body);
-			return List<Map<String, dynamic>>.from(data['friends'] ?? []);
-		} else {
-			throw Exception('Failed to fetch friends');
+		final data = await SimpleApiClient.get(
+			'/user/friends',
+			queryParams: {'uid': uid},
+			requiresAuth: true,
+		);
+		if (data is List) {
+			return data.cast<Map<String, dynamic>>();
 		}
+		final list = data['friends'] ?? data;
+		if (list is List) return list.cast<Map<String, dynamic>>();
+		throw Exception('Failed to fetch friends');
 	}
 
 	Future<List<Map<String, dynamic>>> fetchGroups(String uid) async {
-		final response = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/groups/my?uid=$uid'));
-		if (response.statusCode == 200) {
-			final List data = jsonDecode(response.body);
-			return data.cast<Map<String, dynamic>>();
-		} else {
-			throw Exception('Failed to fetch groups');
-		}
+		final data = await SimpleApiClient.get(
+			'/groups/my',
+			queryParams: {'uid': uid},
+			requiresAuth: true,
+		);
+		if (data is List) return data.cast<Map<String, dynamic>>();
+		final list = data['groups'] ?? data;
+		if (list is List) return list.cast<Map<String, dynamic>>();
+		throw Exception('Failed to fetch groups');
 	}
 
 	Future<List<Map<String, dynamic>>> fetchLatestChats(String uid) async {
-		final response = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/chat/list/$uid'));
-		if (response.statusCode == 200) {
-			final List data = jsonDecode(response.body);
-			return data.cast<Map<String, dynamic>>();
-		} else {
-			throw Exception('Failed to fetch chats');
-		}
+		final data = await SimpleApiClient.get(
+			'/chat/list/$uid',
+			requiresAuth: true,
+		);
+		final list = (data is Map) ? data['chats'] : data;
+		if (list is List) return list.cast<Map<String, dynamic>>();
+		throw Exception('Failed to fetch chats');
 	}
 
 	String _formatTimestamp(dynamic timestamp) {
@@ -554,14 +704,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 	Future<void> _saveMessageToBackend(String chatId, String senderId, String message) async {
 		try {
-			await http.post(
-				Uri.parse('https://ary-lendly-production.up.railway.app/chat/send'),
-				headers: {'Content-Type': 'application/json'},
-				body: jsonEncode({
+			await SimpleApiClient.post(
+				'/chat/send',
+				body: {
 					'chatId': chatId,
 					'senderId': senderId,
 					'text': message,
-				}),
+				},
+				requiresAuth: true,
 			);
 		} catch (e) {
 			print('Failed to save message to backend: $e');
@@ -577,7 +727,7 @@ class ChatSocketService {
   bool _connected = false;
 
   ChatSocketService._internal() {
-	socket = IO.io('https://ary-lendly-production.up.railway.app', <String, dynamic>{
+	socket = IO.io(EnvConfig.socketUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
     });

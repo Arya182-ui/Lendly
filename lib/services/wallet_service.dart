@@ -1,10 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
+import 'api_client.dart';
 
 class WalletService {
-  static const String baseUrl = '${ApiConfig.baseUrl}/wallet';
-
   // Transaction types
   static const String TRANSACTION_EARNED = 'earned_transaction';
   static const String TRANSACTION_BONUS_SIGNUP = 'bonus_signup';
@@ -27,30 +23,19 @@ class WalletService {
   // Get user wallet
   static Future<Map<String, dynamic>> getWallet(String uid) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/$uid'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await SimpleApiClient.get(
+        '/wallet/$uid',
+        requiresAuth: true,
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          return {
-            'success': true,
-            'wallet': data['wallet'],
-          };
-        } else {
-          return {
-            'success': false,
-            'error': data['error'] ?? 'Failed to get wallet',
-          };
-        }
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'wallet': data['wallet'],
+        };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode}',
+          'error': data['error'] ?? 'Failed to get wallet',
         };
       }
     } catch (e) {
@@ -69,36 +54,30 @@ class WalletService {
     String? type,
   }) async {
     try {
-      String url = '$baseUrl/$uid/transactions?limit=$limit&offset=$offset';
+      final queryParams = {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      };
       if (type != null && type.isNotEmpty && type != 'all') {
-        url += '&type=$type';
+        queryParams['type'] = type;
       }
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await SimpleApiClient.get(
+        '/wallet/$uid/transactions',
+        queryParams: queryParams,
+        requiresAuth: true,
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          return {
-            'success': true,
-            'transactions': data['transactions'],
-            'hasMore': data['hasMore'] ?? false,
-          };
-        } else {
-          return {
-            'success': false,
-            'error': data['error'] ?? 'Failed to get transactions',
-          };
-        }
+      
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'transactions': data['transactions'],
+          'hasMore': data['hasMore'] ?? false,
+        };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode}',
+          'error': data['error'] ?? 'Failed to get transactions',
         };
       }
     } catch (e) {
@@ -118,37 +97,29 @@ class WalletService {
     String? relatedId,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/$uid/award'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'amount': amount,
-          'type': type,
-          'description': description,
-          if (relatedId != null) 'relatedId': relatedId,
-        }),
-      );
+      final body = {
+        'amount': amount,
+        'type': type,
+        'description': description,
+        if (relatedId != null) 'relatedId': relatedId,
+      };
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          return {
-            'success': true,
-            'transaction': data['transaction'],
-            'newBalance': data['newBalance'],
-          };
-        } else {
-          return {
-            'success': false,
-            'error': data['error'] ?? 'Failed to award points',
-          };
-        }
+      final data = await SimpleApiClient.post(
+        '/wallet/$uid/award',
+        body: body,
+        requiresAuth: true,
+      );
+      
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'transaction': data['transaction'],
+          'newBalance': data['newBalance'],
+        };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode}',
+          'error': data['error'] ?? 'Failed to award points',
         };
       }
     } catch (e) {
@@ -168,37 +139,29 @@ class WalletService {
     String? relatedId,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/$uid/spend'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'amount': amount,
-          'type': type,
-          'description': description,
-          if (relatedId != null) 'relatedId': relatedId,
-        }),
-      );
+      final body = {
+        'amount': amount,
+        'type': type,
+        'description': description,
+        if (relatedId != null) 'relatedId': relatedId,
+      };
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          return {
-            'success': true,
-            'transaction': data['transaction'],
-            'newBalance': data['newBalance'],
-          };
-        } else {
-          return {
-            'success': false,
-            'error': data['error'] ?? 'Failed to spend points',
-          };
-        }
+      final data = await SimpleApiClient.post(
+        '/wallet/$uid/spend',
+        body: body,
+        requiresAuth: true,
+      );
+      
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'transaction': data['transaction'],
+          'newBalance': data['newBalance'],
+        };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode}',
+          'error': data['error'] ?? 'Failed to spend points',
         };
       }
     } catch (e) {
@@ -215,30 +178,21 @@ class WalletService {
     String period = '30d',
   }) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/$uid/stats?period=$period'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await SimpleApiClient.get(
+        '/wallet/$uid/stats',
+        queryParams: {'period': period},
+        requiresAuth: true,
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          return {
-            'success': true,
-            'stats': data['stats'],
-          };
-        } else {
-          return {
-            'success': false,
-            'error': data['error'] ?? 'Failed to get wallet statistics',
-          };
-        }
+      
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'stats': data['stats'],
+        };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode}',
+          'error': data['error'] ?? 'Failed to get wallet statistics',
         };
       }
     } catch (e) {

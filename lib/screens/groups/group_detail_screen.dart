@@ -52,13 +52,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   Future<void> _fetchGroup() async {
     try {
-      final group = await GroupService.fetchGroupById(widget.groupId);
+      final group = await GroupService.fetchGroupByIdStatic(widget.groupId);
       if (mounted) {
         setState(() {
-          _groupName = group['name'] ?? '';
-          _description = group['description'] ?? '';
-          _groupType = group['type'] ?? '';
-          _members = List<String>.from(group['members'] ?? []);
+          _groupName = group?['name'] ?? '';
+          _description = group?['description'] ?? '';
+          _groupType = group?['type'] ?? '';
+          _members = List<String>.from(group?['members'] ?? []);
         });
         await _fetchMemberNames();
       }
@@ -113,14 +113,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     try {
       final isMember = _members.contains(_uid);
       if (isMember) {
-        await GroupService.leaveGroup(groupId: widget.groupId, uid: _uid!);
+        final groupService = GroupService();
+        await groupService.leaveGroup(widget.groupId, _uid!);
         setState(() => _members.remove(_uid));
         await _fetchMemberNames();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left group')));
         }
       } else {
-        await GroupService.joinGroup(groupId: widget.groupId, uid: _uid!);
+        final groupService = GroupService();
+        await groupService.joinGroup(widget.groupId, _uid!);
         setState(() => _members.add(_uid!));
         await _fetchMemberNames();
         if (mounted) {
@@ -227,11 +229,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 );
                 if (result != null && result['name'] != null && result['description'] != null) {
                   try {
-                    await GroupService.updateGroup(
-                      groupId: widget.groupId,
-                      name: result['name']!,
-                      description: result['description']!,
-                    );
+                    final groupService = GroupService();
+                    await groupService.updateGroup(widget.groupId, {
+                      'name': result['name']!,
+                      'description': result['description']!,
+                    });
                     await _fetchGroup();
                     if (mounted) Navigator.of(context).pop(true);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Group updated!')));
@@ -240,6 +242,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   }
                 }
               },
+            ),
+          ] else if (_uid != null && !isMember) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.group_add),
+              label: const Text('Join Group'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF1DBF73),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              onPressed: _loading ? null : _handleJoinLeave,
+            ),
+          ] else if (isMember && _uid != widget.createdBy) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.exit_to_app),
+              label: const Text('Leave Group'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[400],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              onPressed: _loading ? null : _handleJoinLeave,
             ),
           ],
           const SizedBox(height: 32),

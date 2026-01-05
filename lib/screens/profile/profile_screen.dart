@@ -1,22 +1,24 @@
-
 import 'package:lendly/screens/profile/public_profile_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/env_config.dart';
 import '../impact/impact_screen.dart';
 import '../friends_screen.dart';
 import '../auth/id_upload_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../services/verification_service.dart';
+import '../../services/firebase_auth_service.dart';
 import '../../providers/user_provider.dart';
 import 'package:lendly/widgets/avatar_options.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../../services/api_client.dart';
 import '../../services/session_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/item_service.dart';
 import 'user_ratings_screen.dart';
 import '../wallet/wallet_screen.dart';
+import '../../utils/avatar_utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -112,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
   List<dynamic> myItems = [];
-  final ItemService _itemService = ItemService('https://ary-lendly-production.up.railway.app');
+  final ItemService _itemService = ItemService(EnvConfig.apiBaseUrl);
   int friendsCount = 0;
   late TabController _tabController;
   bool isBioExpanded = false;
@@ -161,8 +163,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Future<void> _fetchProfile() async {
     setState(() { isLoading = true; });
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/profile?uid=$uid'));
-      final data = jsonDecode(res.body);
+      final data = await SimpleApiClient.get(
+        '/user/profile',
+        queryParams: {'uid': uid ?? ''},
+        requiresAuth: true,
+      );
       setState(() {
         name = data['name'] ?? '';
         college = data['college'] ?? '';
@@ -266,26 +271,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     if (isError) {
       return Scaffold(
         appBar: AppBar(
-          leading: Navigator.canPop(context)
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              : null,
           title: const Text('Profile'),
+          automaticallyImplyLeading: false,
         ),
         body: _buildErrorState(),
       );
     }
     return Scaffold(
       appBar: AppBar(
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
         title: const Text('Profile'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -301,7 +296,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () async {
+              // Sign out from Firebase
+              final firebaseAuth = FirebaseAuthService();
+              await firebaseAuth.signOut();
+              
+              // Clear old session data
               await SessionService.clearSession();
+              
+              if (!context.mounted) return;
               Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
           ),
@@ -747,25 +749,56 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               },
             );
             if (result != null) {
+              final newName = result['name'] ?? name;
+              final newCollege = result['college'] ?? college;
+              final newAvatar = result['avatar'] ?? avatar;
+              
+              // Update UI immediately
               setState(() {
-                name = result['name'] ?? name;
-                college = result['college'] ?? college;
-                avatar = result['avatar'] ?? avatar;
+                name = newName;
+                college = newCollege;
+                avatar = newAvatar;
               });
-              // Persist avatar, name, and college to backend
+              
+              // Persist to backend
               try {
-                await http.put(
-                  Uri.parse('https://ary-lendly-production.up.railway.app/user/profile'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode({
+                await SimpleApiClient.put(
+                  '/user/profile',
+                  body: {
                     'uid': uid,
-                    'name': name,
-                    'college': college,
-                    'avatar': avatar,
-                  }),
+                    'name': newName,
+                    'college': newCollege,
+                    'avatar': newAvatar,
+                  },
+                  requiresAuth: true,
                 );
+                
+                // Update UserProvider so changes reflect across app
+                if (mounted) {
+                  final userProvider = Provider.of<UserProvider>(context, listen: false);
+                  userProvider.setProfile(
+                    newName: newName,
+                    newCollege: newCollege,
+                    newAvatar: newAvatar,
+                  );
+                }
+                
+                // Refresh profile to ensure consistency
+                await _fetchProfile();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
+                  );
+                }
               } catch (e) {
-                // Optionally show error
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to update profile: ${e.toString()}'), backgroundColor: Colors.red),
+                  );
+                }
+                // Revert changes on error
+                await _fetchProfile();
               }
             }
           },
@@ -895,13 +928,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       });
                       // Update bio in backend
                       try {
-                        await http.put(
-                          Uri.parse('https://ary-lendly-production.up.railway.app/user/profile'),
-                          headers: {'Content-Type': 'application/json'},
-                          body: jsonEncode({
+                        await SimpleApiClient.put(
+                          '/user/profile',
+                          body: {
                             'uid': uid,
                             'bio': result,
-                          }),
+                          },
+                          requiresAuth: true,
                         );
                       } catch (e) {
                         // Optionally show error
@@ -1017,13 +1050,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             });
                             // Update socialProfile in backend
                             try {
-                              await http.put(
-                                Uri.parse('https://ary-lendly-production.up.railway.app/user/profile'),
-                                headers: {'Content-Type': 'application/json'},
-                                body: jsonEncode({
+                              await SimpleApiClient.put(
+                                '/user/profile',
+                                body: {
                                   'uid': uid,
                                   'socialProfile': result,
-                                }),
+                                },
+                                requiresAuth: true,
                               );
                             } catch (e) {
                               // Optionally show error
@@ -1111,13 +1144,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             });
                             // Update socialProfile in backend
                             try {
-                              await http.put(
-                                Uri.parse('https://ary-lendly-production.up.railway.app/user/profile'),
-                                headers: {'Content-Type': 'application/json'},
-                                body: jsonEncode({
+                              await SimpleApiClient.put(
+                                '/user/profile',
+                                body: {
                                   'uid': uid,
                                   'socialProfile': result,
-                                }),
+                                },
+                                requiresAuth: true,
                               );
                             } catch (e) {
                               // Optionally show error
@@ -1413,7 +1446,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             ),
           );
         } else if (avatar.startsWith('http')) {
-          avatarWidget = CircleAvatar(backgroundImage: NetworkImage(avatar));
+          avatarWidget = AvatarUtils.buildCircleAvatar(
+            avatarPath: avatar,
+            fallbackText: r['name']?.toString() ?? 'U',
+            backgroundColor: Colors.green[700],
+          );
         } else {
           avatarWidget = CircleAvatar(
             backgroundColor: Colors.green[700],
@@ -1451,18 +1488,80 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildSkeletonLoader() {
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      children: List.generate(
-        5,
-        (i) => Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          height: 32,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(8),
+      child: Column(
+        children: [
+          // Avatar skeleton
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          // Name skeleton
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // College skeleton
+          Container(
+            width: 250,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Stats cards skeleton
+          Row(
+            children: List.generate(3, (i) => 
+              Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: i < 2 ? 8 : 0),
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Bio section skeleton
+          Container(
+            width: double.infinity,
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Additional sections skeleton
+          ...List.generate(
+            3,
+            (i) => Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              width: double.infinity,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

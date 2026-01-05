@@ -1,10 +1,15 @@
+import 'env_config.dart';
+
 class ApiConfig {
-  static const String baseUrl = 'https://ary-lendly-production.up.railway.app';
+  /// Use environment-based URL
+  static String get baseUrl => EnvConfig.apiBaseUrl;
+  
+  // For backwards compatibility - these now use EnvConfig
   static const String apiVersion = 'v1';
   
-  // Timeout configurations
-  static const Duration connectTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  // Timeout configurations - use EnvConfig values
+  static Duration get connectTimeout => EnvConfig.connectionTimeoutDuration;
+  static Duration get receiveTimeout => EnvConfig.receiveTimeoutDuration;
   
   // Endpoints
   static const String authEndpoint = '/auth';
@@ -19,11 +24,20 @@ class ApiConfig {
   static const String homeEndpoint = '/home';
   
   // File upload limits
-  static const int maxFileSize = 10 * 1024 * 1024; // 10MB
+  static int get maxFileSize => EnvConfig.maxImageSize * 1024; // Convert KB to bytes
   static const List<String> allowedImageTypes = [
     'image/jpeg',
     'image/png', 
     'image/gif',
     'image/webp'
   ];
+  
+  // Helper methods
+  static String buildUrl(String endpoint) => '$baseUrl$endpoint';
+  
+  static Map<String, String> get defaultHeaders => {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-App-Version': EnvConfig.appVersion,
+  };
 }

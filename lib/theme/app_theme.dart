@@ -71,7 +71,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
         ),
         color: surfaceColor,
-        shadowColor: Colors.black.withOpacity(0.1),
+        shadowColor: Colors.black.withValues(alpha: 0.1),
       ),
 
       // Button Themes
@@ -159,7 +159,7 @@ class AppTheme {
       // Chip Theme
       chipTheme: ChipThemeData(
         backgroundColor: Colors.grey[200]!,
-        selectedColor: primaryColor.withOpacity(0.2),
+        selectedColor: primaryColor.withValues(alpha: 0.2),
         labelStyle: const TextStyle(color: textPrimary),
         secondaryLabelStyle: const TextStyle(color: Colors.white),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

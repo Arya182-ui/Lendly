@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
-import 'otp_input_screen.dart';
+import 'package:flutter/scheduler.dart';
+import '../../services/firebase_auth_service.dart';
+import '../../services/api_client.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -9,7 +10,9 @@ class SignupScreen extends StatefulWidget {
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -17,8 +20,23 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscureConfirm = true;
   bool _loading = false;
   String? _error;
-  String? _otpId;
-  String? _uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = this.createTicker((elapsed) {
+      // Add animation logic here if needed
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,8 +186,9 @@ class _SignupScreenState extends State<SignupScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirm = _confirmPasswordController.text.trim();
-    if (email.isEmpty) {
-      setState(() { _loading = false; _error = 'Email required'; });
+    
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() { _loading = false; _error = 'Please enter a valid email'; });
       return;
     }
     if (password.isEmpty || password.length < 6) {
@@ -180,83 +199,64 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() { _loading = false; _error = 'Passwords do not match'; });
       return;
     }
-    final res = await AuthService.sendOtp(email);
-    setState(() { _loading = false; });
-    if (res['success'] == true) {
-      setState(() { _otpId = res['otpId']; });
-      _showOtpDialog(email, password);
-    } else {
-      setState(() { _error = res['error'] ?? 'Failed to send OTP'; });
-    }
-  }
-
-  void _showOtpDialog(String email, String password) {
-    final otpController = TextEditingController();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        bool loading = false;
-        String? error;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Enter OTP'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: otpController,
-                    decoration: InputDecoration(
-                      labelText: 'OTP',
-                      errorText: error,
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                  ),
-                ],
-              ),
-              actions: [
-                loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(),
-                      )
-                    : TextButton(
-                        onPressed: () async {
-                          setState(() { loading = true; error = null; });
-                          final res = await AuthService.verifyOtp(email, otpController.text.trim(), _otpId ?? '');
-                          if (res['success'] == true) {
-                            _uid = res['uid'];
-                            final setPass = await AuthService.setPassword(_uid!, password);
-                            setState(() { loading = false; });
-                            if (setPass['success'] == true) {
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Account created! Please login.'),
-                                  backgroundColor: Colors.green,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                              // Redirect to login after short delay
-                              Future.delayed(const Duration(milliseconds: 800), () {
-                                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                              });
-                            } else {
-                              error = setPass['error'] ?? 'Failed to set password';
-                            }
-                          } else {
-                            setState(() { loading = false; error = res['error'] ?? 'Invalid OTP'; });
-                          }
-                        },
-                        child: const Text('Verify'),
-                      ),
-              ],
-            );
-          },
+    
+    try {
+      final firebaseAuth = FirebaseAuthService();
+      final user = await firebaseAuth.signUp(email, password);
+      
+      if (user?.user != null) {
+        final uid = user!.user!.uid;
+        
+        // Create basic user profile in backend
+        try {
+          await SimpleApiClient.post(
+            '/auth/complete-onboarding',
+            body: {
+              'uid': uid,
+              'displayName': email.split('@')[0], // Use email prefix as default name
+              'email': email,
+              'avatarChoice': 'default',
+            },
+            requiresAuth: false, // Newly signed up user may not have token yet
+          );
+        } catch (e) {
+        }
+        
+        setState(() { _loading = false; });
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully! Please login.'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-      },
-    );
+        
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      String errorMessage = 'Registration failed. Please try again.';
+      
+      // Handle Firebase Auth exceptions with user-friendly messages
+      if (e.toString().contains('email-already-in-use')) {
+        errorMessage = 'An account already exists with this email address.';
+      } else if (e.toString().contains('weak-password')) {
+        errorMessage = 'Password is too weak. Please choose a stronger password.';
+      } else if (e.toString().contains('invalid-email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e.toString().contains('operation-not-allowed')) {
+        errorMessage = 'Email/password accounts are not enabled.';
+      } else if (e.toString().contains('too-many-requests')) {
+        errorMessage = 'Too many requests. Please try again later.';
+      } else if (e.toString().contains('network-request-failed')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      setState(() { 
+        _loading = false; 
+        _error = errorMessage; 
+      });
+    }
   }
 }

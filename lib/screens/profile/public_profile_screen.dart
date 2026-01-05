@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../services/api_client.dart';
+import '../../services/friendship_service.dart';
+import '../../config/env_config.dart';
 import 'package:lendly/widgets/avatar_options.dart';
 import 'package:lendly/services/session_service.dart';
-import 'package:lendly/services/auth_service.dart';
 import '../chat/chat_screen.dart';
 import '../../widgets/enhanced_ui_components.dart';
 import '../../widgets/app_image.dart';
@@ -19,7 +20,7 @@ class PublicProfileScreen extends StatefulWidget {
 
 class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerProviderStateMixin {
     String? myUid;
-    String friendshipStatus = '';
+    FriendshipStatus? friendshipStatus;
     bool isFriendshipLoading = true;
     late AnimationController _animationController;
     late Animation<double> _fadeAnimation;
@@ -30,6 +31,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
     int totalLends = 0;
     String joinedDate = '';
     double profileCompleteness = 0.0;
+    Map<String, dynamic>? profile;
+    final FriendshipService _friendshipService = FriendshipService();
 
 
   @override
@@ -66,12 +69,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
   Future<void> _fetchUserItems() async {
     setState(() { isItemsLoading = true; });
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/items?uid=${widget.uid}&limit=6'));
-      if (res.statusCode == 200) {
-        setState(() {
-          userItems = List<Map<String, dynamic>>.from(jsonDecode(res.body)['items'] ?? []);
-        });
-      }
+      final data = await SimpleApiClient.get(
+        '/user/items',
+        queryParams: {'uid': widget.uid, 'limit': '6'},
+        requiresAuth: true,
+      );
+      setState(() {
+        userItems = List<Map<String, dynamic>>.from(data['items'] ?? []);
+      });
     } catch (e) {
       // Handle error silently
     }
@@ -80,39 +85,189 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
 
   Future<void> _fetchUserStats() async {
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/stats?uid=${widget.uid}'));
-      if (res.statusCode == 200) {
-        final stats = jsonDecode(res.body);
-        setState(() {
-          totalBorrows = stats['totalBorrows'] ?? 0;
-          totalLends = stats['totalLends'] ?? 0;
-          joinedDate = stats['joinedDate'] ?? '';
-          userBadges = List<Map<String, dynamic>>.from(stats['badges'] ?? []);
-          profileCompleteness = stats['profileCompleteness'] ?? 0.0;
-        });
-      }
+      final stats = await SimpleApiClient.get(
+        '/user/stats',
+        queryParams: {'uid': widget.uid},
+        requiresAuth: true,
+      );
+      setState(() {
+        totalBorrows = stats['totalBorrows'] ?? 0;
+        totalLends = stats['totalLends'] ?? 0;
+        joinedDate = stats['joinedDate'] ?? '';
+        userBadges = List<Map<String, dynamic>>.from(stats['badges'] ?? []);
+        profileCompleteness = stats['profileCompleteness'] ?? 0.0;
+      });
     } catch (e) {
       // Handle error silently
     }
   }
 
     Future<void> _fetchFriendshipStatus() async {
+      if (myUid == null) return;
+      
       setState(() { isFriendshipLoading = true; });
       try {
-        final res = await AuthService.getFriendshipStatus(myUid!, widget.uid);
+        final statusData = await _friendshipService.getFriendshipStatus(myUid!, widget.uid);
         setState(() {
-          friendshipStatus = res['status'] ?? '';
+          friendshipStatus = FriendshipStatus.fromMap(statusData);
           isFriendshipLoading = false;
         });
       } catch (e) {
-        setState(() { friendshipStatus = ''; isFriendshipLoading = false; });
+        setState(() { 
+          friendshipStatus = null;
+          isFriendshipLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load friendship status: ${e.toString()}')),
+          );
+        }
       }
     }
 
     Future<void> _handleAddFriend() async {
+      if (myUid == null) return;
+      
       setState(() { isFriendshipLoading = true; });
-      await AuthService.sendFriendRequest(myUid!, widget.uid);
-      await _fetchFriendshipStatus();
+      
+      try {
+        await _friendshipService.sendFriendRequest(myUid!, widget.uid);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Friend request sent successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        await _fetchFriendshipStatus();
+      } catch (e) {
+        setState(() { isFriendshipLoading = false; });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to send friend request: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    Future<void> _handleAcceptRequest() async {
+      if (myUid == null) return;
+      
+      setState(() { isFriendshipLoading = true; });
+      
+      try {
+        await _friendshipService.acceptFriendRequest(widget.uid, myUid!);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Friend request accepted!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        await _fetchFriendshipStatus();
+      } catch (e) {
+        setState(() { isFriendshipLoading = false; });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to accept request: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    Future<void> _handleRejectRequest() async {
+      if (myUid == null) return;
+      
+      setState(() { isFriendshipLoading = true; });
+      
+      try {
+        await _friendshipService.rejectFriendRequest(widget.uid, myUid!);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Friend request rejected'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        
+        await _fetchFriendshipStatus();
+      } catch (e) {
+        setState(() { isFriendshipLoading = false; });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to reject request: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    Future<void> _handleRemoveFriend() async {
+      if (myUid == null) return;
+      
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Remove Friend'),
+          content: Text('Are you sure you want to remove ${profile?['name'] ?? 'this user'} from your friends?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Remove'),
+            ),
+          ],
+        ),
+      );
+      
+      if (result != true) return;
+      
+      setState(() { isFriendshipLoading = true; });
+      
+      try {
+        await _friendshipService.removeFriend(myUid!, widget.uid);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Friend removed successfully'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        
+        await _fetchFriendshipStatus();
+      } catch (e) {
+        setState(() { isFriendshipLoading = false; });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to remove friend: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
 
     Future<void> _handleChat() async {
@@ -121,14 +276,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ChatScreen(
-            name: profile!['name'] ?? 'Unknown',
-            contextLabel: 'Chat',
-            avatarUrl: profile!['avatar'] ?? '',
-            currentUid: myUid!,
+          builder: (context) => EnhancedChatScreen(
+            chatId: widget.uid, // Use the profile UID as chat ID
             peerUid: widget.uid,
+            peerName: profile?['first_name'] ?? 'User',
+            peerAvatar: profile?['avatar_url'] ?? '',
             isGroup: false,
-            trust: true,
           ),
         ),
       );
@@ -136,26 +289,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
 
   bool isLoading = true;
   bool isError = false;
-  Map<String, dynamic>? profile;
-
   Future<void> _fetchPublicProfile() async {
     setState(() {
       isLoading = true;
       isError = false;
     });
     try {
-      final res = await http.get(Uri.parse('https://ary-lendly-production.up.railway.app/user/public-profile?uid=${widget.uid}'));
-      if (res.statusCode == 200) {
-        setState(() {
-          profile = jsonDecode(res.body);
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isError = true;
-          isLoading = false;
-        });
-      }
+      final data = await SimpleApiClient.get(
+        '/user/public-profile',
+        queryParams: {'uid': widget.uid},
+        requiresAuth: true,
+      );
+      setState(() {
+        profile = data;
+        isLoading = false;
+      });
     } catch (e) {
       setState(() {
         isError = true;
@@ -164,30 +312,81 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
     }
   }
 
+  Widget _buildPublicProfileSkeleton() {
+    return Container(
+      color: Colors.white,
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 220,
+            pinned: true,
+            backgroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                color: Colors.white,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40),
+                    _buildShimmerCircle(120),
+                    const SizedBox(height: 16),
+                    _buildShimmerBox(150, 24),
+                    const SizedBox(height: 8),
+                    _buildShimmerBox(200, 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildShimmerBox(double.infinity, 60),
+                  const SizedBox(height: 24),
+                  _buildShimmerBox(double.infinity, 150),
+                  const SizedBox(height: 24),
+                  _buildShimmerBox(double.infinity, 100),
+                  const SizedBox(height: 24),
+                  _buildShimmerBox(double.infinity, 150),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(12),
+      ),
+    );
+  }
+
+  Widget _buildShimmerCircle(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (isLoading) {
       return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.grey[50] ?? Colors.white, Colors.blue[50] ?? Colors.blue],
-            ),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Loading profile...', style: TextStyle(fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
+        body: _buildPublicProfileSkeleton(),
       );
     }
     if (isError || profile == null) {
@@ -239,38 +438,18 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
     
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.grey[50] ?? Colors.white,
-              Colors.blue[50] ?? Colors.blue,
-              Colors.grey[100] ?? Colors.grey,
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-        ),
+        color: Colors.white,
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: 200,
+              expandedHeight: 220,
               floating: false,
               pinned: true,
-              backgroundColor: Colors.transparent,
+              backgroundColor: Colors.white,
               elevation: 0,
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        (Colors.blue[300] ?? Colors.blue).withOpacity(0.4),
-                        (Colors.blue[200] ?? Colors.blue).withOpacity(0.3),
-                      ],
-                    ),
-                  ),
+                  color: Colors.white,
                   child: SafeArea(
                     child: FadeTransition(
                       opacity: _fadeAnimation,
@@ -307,48 +486,55 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                           ),
                           const SizedBox(height: 16),
                           // Name with verification badge
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(color: Colors.black26, offset: Offset(1, 1), blurRadius: 3),
-                                    ],
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (verificationStatus == 'verified') ...[
-                                const SizedBox(width: 8),
-                                const Tooltip(
-                                  message: 'Verified Student',
-                                  child: Icon(
-                                    Icons.verified,
-                                    color: Colors.blue,
-                                    size: 24,
-                                    shadows: [
-                                      Shadow(color: Colors.black26, offset: Offset(1, 1), blurRadius: 3),
-                                    ],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                      height: 1.2,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.visible,
                                   ),
                                 ),
+                                if (verificationStatus == 'verified') ...[
+                                  const SizedBox(width: 8),
+                                  const Tooltip(
+                                    message: 'Verified Student',
+                                    child: Icon(
+                                      Icons.verified,
+                                      color: Colors.blue,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                           if (college.isNotEmpty)
-                            Text(
-                              college,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.white70,
-                                fontWeight: FontWeight.w500,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Text(
+                                college,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.visible,
                               ),
-                              textAlign: TextAlign.center,
                             ),
                         ],
                       ),
@@ -412,6 +598,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
   }
 
   Widget _buildActionButtons() {
+    if (myUid == widget.uid) {
+      // Don't show action buttons for own profile
+      return const SizedBox.shrink();
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -436,58 +627,156 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : friendshipStatus == 'friends'
-                    ? ElevatedButton.icon(
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        label: const Text('Chat'),
-                        onPressed: _handleChat,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[600],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      )
-                    : friendshipStatus == 'pending'
-                        ? ElevatedButton.icon(
-                            icon: const Icon(Icons.hourglass_empty),
-                            label: const Text('Request Sent'),
-                            onPressed: null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange[100],
-                              foregroundColor: Colors.orange[700],
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          )
-                        : ElevatedButton.icon(
-                            icon: const Icon(Icons.person_add),
-                            label: const Text('Add Friend'),
-                            onPressed: _handleAddFriend,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green[600],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
+                : _buildPrimaryActionButton(),
           ),
-          if (friendshipStatus == 'friends') ...[
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () => _showRatingDialog(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber[600],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.all(12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Icon(Icons.star),
-            ),
-          ],
+          const SizedBox(width: 12),
+          _buildSecondaryActionButton(),
         ],
       ),
     );
+  }
+
+  Widget _buildPrimaryActionButton() {
+    if (friendshipStatus == null) {
+      return ElevatedButton.icon(
+        icon: const Icon(Icons.person_add),
+        label: const Text('Add Friend'),
+        onPressed: _handleAddFriend,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue[600],
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+
+    switch (friendshipStatus!.status) {
+      case FriendshipService.STATUS_FRIENDS:
+        return ElevatedButton.icon(
+          icon: const Icon(Icons.chat_bubble_outline),
+          label: const Text('Chat'),
+          onPressed: _handleChat,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[600],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      
+      case FriendshipService.STATUS_PENDING_SENT:
+        return ElevatedButton.icon(
+          icon: const Icon(Icons.hourglass_empty),
+          label: const Text('Request Sent'),
+          onPressed: null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.grey[300],
+            foregroundColor: Colors.grey[700],
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      
+      case FriendshipService.STATUS_PENDING_RECEIVED:
+        return ElevatedButton.icon(
+          icon: const Icon(Icons.check),
+          label: const Text('Accept Request'),
+          onPressed: _handleAcceptRequest,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange[600],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      
+      case FriendshipService.STATUS_BLOCKED:
+        return ElevatedButton.icon(
+          icon: const Icon(Icons.block),
+          label: const Text('Blocked'),
+          onPressed: null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red[300],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      
+      default:
+        return ElevatedButton.icon(
+          icon: const Icon(Icons.person_add),
+          label: const Text('Add Friend'),
+          onPressed: _handleAddFriend,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue[600],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+    }
+  }
+
+  Widget _buildSecondaryActionButton() {
+    if (friendshipStatus?.status == FriendshipService.STATUS_FRIENDS) {
+      return PopupMenuButton<String>(
+        onSelected: (value) {
+          switch (value) {
+            case 'rate':
+              _showRatingDialog();
+              break;
+            case 'remove':
+              _handleRemoveFriend();
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'rate',
+            child: Row(
+              children: [
+                Icon(Icons.star, size: 18),
+                SizedBox(width: 8),
+                Text('Rate User'),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'remove',
+            child: Row(
+              children: [
+                Icon(Icons.person_remove, size: 18, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Remove Friend', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+        ],
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.more_vert, color: Colors.grey),
+        ),
+      );
+    } else if (friendshipStatus?.status == FriendshipService.STATUS_PENDING_RECEIVED) {
+      return ElevatedButton(
+        onPressed: _handleRejectRequest,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.grey[600],
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Icon(Icons.close),
+      );
+    }
+    
+    return const SizedBox.shrink();
   }
 
   Widget _buildStatsSection(int rating, int trustScore, String verificationStatus) {
@@ -532,30 +821,30 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                   icon: Icons.star,
                   value: rating.toStringAsFixed(1),
                   label: 'Rating',
-                  color: Colors.amber[600] ?? Colors.amber,
+                  color: Colors.grey[700] ?? Colors.grey,
                   gradient: [
-                    Colors.amber[400] ?? Colors.amber,
-                    Colors.orange[400] ?? Colors.orange,
+                    Colors.grey[100] ?? Colors.grey,
+                    Colors.grey[200] ?? Colors.grey,
                   ],
                 ),
                 _buildStatCard(
                   icon: Icons.shield,
                   value: '$trustScore%',
                   label: 'Trust Score',
-                  color: Colors.green[600] ?? Colors.green,
+                  color: Colors.grey[700] ?? Colors.grey,
                   gradient: [
-                    Colors.green[400] ?? Colors.green,
-                    Colors.teal[400] ?? Colors.teal,
+                    Colors.grey[100] ?? Colors.grey,
+                    Colors.grey[200] ?? Colors.grey,
                   ],
                 ),
                 _buildStatCard(
                   icon: Icons.swap_horiz,
                   value: '${totalBorrows + totalLends}',
                   label: 'Transactions',
-                  color: Colors.blue[600] ?? Colors.blue,
+                  color: Colors.grey[700] ?? Colors.grey,
                   gradient: [
-                    Colors.blue[400] ?? Colors.blue,
-                    Colors.purple[400] ?? Colors.purple,
+                    Colors.grey[100] ?? Colors.grey,
+                    Colors.grey[200] ?? Colors.grey,
                   ],
                 ),
               ],
@@ -622,22 +911,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
       ),
       child: Column(
         children: [
-          Icon(icon, color: Colors.white, size: 28),
+          Icon(icon, color: color, size: 28),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: Colors.grey[800],
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: Colors.white70,
+              color: Colors.grey[600],
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1157,40 +1446,85 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
   }
 
   void _showRatingDialog() {
+    int selectedRating = 0;
+    final feedbackController = TextEditingController();
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Rate ${profile!['name'] ?? 'User'}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('How was your experience with this user?'),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(5, (index) {
-                  return IconButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _rateUser(index + 1);
-                    },
-                    icon: Icon(
-                      Icons.star,
-                      color: Colors.amber[600],
-                      size: 32,
+        return StatefulBuilder(
+          builder: (context, setStateDialog) => AlertDialog(
+            title: Text('Rate ${profile!['name'] ?? 'User'}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('How was your experience with this user?'),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(5, (index) {
+                      return GestureDetector(
+                        onTap: () {
+                          setStateDialog(() {
+                            selectedRating = index + 1;
+                          });
+                        },
+                        child: Icon(
+                          Icons.star,
+                          color: selectedRating > index ? Colors.amber[600] : Colors.grey[300],
+                          size: 36,
+                        ),
+                      );
+                    }),
+                  ),
+                  if (selectedRating > 0) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Rating: $selectedRating/5 stars',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber[700],
+                      ),
                     ),
-                  );
-                }),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: feedbackController,
+                      decoration: InputDecoration(
+                        labelText: 'Add a comment (optional)',
+                        hintText: 'Share your experience...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      maxLines: 3,
+                      maxLength: 250,
+                    ),
+                  ],
+                ],
               ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              if (selectedRating > 0)
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _rateUser(selectedRating);
+                    feedbackController.dispose();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber[600],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Submit Rating'),
+                ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-          ],
         );
       },
     );
@@ -1200,30 +1534,32 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
     if (myUid == null) return;
     
     try {
-      final response = await http.post(
-        Uri.parse('https://ary-lendly-production.up.railway.app/user/rate'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      await SimpleApiClient.post(
+        '/user/rate',
+        body: {
           'raterUid': myUid,
           'ratedUid': widget.uid,
           'rating': rating,
-        }),
+        },
+        requiresAuth: true,
       );
       
-      if (response.statusCode == 200) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Rated $rating stars! Thank you for your feedback.')),
-          );
-          await _fetchPublicProfile();
-        }
-      } else {
-        throw Exception('Failed to submit rating');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rated $rating stars! Thank you for your feedback.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _fetchPublicProfile();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit rating: $e')),
+          SnackBar(
+            content: Text('Failed to submit rating: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

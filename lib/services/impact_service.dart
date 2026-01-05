@@ -10,7 +10,7 @@ class ImpactService {
   Future<Map<String, dynamic>> getPersonalImpact(String userId) async {
     if (userId.isEmpty) throw ArgumentError('userId cannot be empty');
     
-    return await ApiClient.get(
+    return await SimpleApiClient.get(
       '/impact/personal/$userId',
       cacheDuration: const Duration(minutes: 10),
     );
@@ -20,7 +20,7 @@ class ImpactService {
   Future<Map<String, dynamic>> getEnvironmentalImpact(String userId) async {
     if (userId.isEmpty) throw ArgumentError('userId cannot be empty');
     
-    return await ApiClient.get(
+    return await SimpleApiClient.get(
       '/impact/environmental/$userId',
       cacheDuration: const Duration(minutes: 10),
     );
@@ -30,7 +30,7 @@ class ImpactService {
   Future<Map<String, dynamic>> getCommunityImpact(String userId) async {
     if (userId.isEmpty) throw ArgumentError('userId cannot be empty');
     
-    return await ApiClient.get(
+    return await SimpleApiClient.get(
       '/impact/community/$userId',
       cacheDuration: const Duration(minutes: 10),
     );
@@ -38,34 +38,37 @@ class ImpactService {
 
   /// Get leaderboard data - cached for 15 minutes
   Future<List<dynamic>> getLeaderboard() async {
-    final result = await ApiClient.get(
+    final result = await SimpleApiClient.get(
       '/impact/leaderboard',
       cacheDuration: const Duration(minutes: 15),
     );
-    if (result is List) return result;
-    if (result is Map) {
-      final message = result['error'] ?? result['message'] ?? 'Failed to load leaderboard';
-      throw Exception(message);
+    // SimpleApiClient.get always returns Map<String, dynamic>
+    if (result.containsKey('leaderboard') && result['leaderboard'] is List) {
+      return result['leaderboard'] as List;
     }
-    throw Exception('Failed to load leaderboard');
+    if (result.containsKey('data') && result['data'] is List) {
+      return result['data'] as List;
+    }
+    final message = result['error'] ?? result['message'] ?? 'Failed to load leaderboard';
+    throw Exception(message);
   }
 
   /// Get user badges - cached for 15 minutes
   Future<List<dynamic>> getBadges(String userId) async {
     if (userId.isEmpty) throw ArgumentError('userId cannot be empty');
-    final result = await ApiClient.get(
+    final result = await SimpleApiClient.get(
       '/impact/badges/$userId',
       cacheDuration: const Duration(minutes: 15),
     );
-    if (result is List) return result;
-    if (result is Map) {
-      if (result.containsKey('badges') && result['badges'] is List) {
-        return result['badges'] as List;
-      }
-      final message = result['error'] ?? result['message'] ?? 'Failed to load badges';
-      throw Exception(message);
+    // SimpleApiClient.get always returns Map<String, dynamic>
+    if (result.containsKey('badges') && result['badges'] is List) {
+      return result['badges'] as List;
     }
-    throw Exception('Failed to load badges');
+    if (result.containsKey('data') && result['data'] is List) {
+      return result['data'] as List;
+    }
+    final message = result['error'] ?? result['message'] ?? 'Failed to load badges';
+    throw Exception(message);
   }
   
   /// Fetch all impact data in parallel
