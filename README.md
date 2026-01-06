@@ -279,7 +279,7 @@ flutter build linux --release
 ### Setup
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/yourusername/lendly.git
+   git clone https://github.com/Arya18-ui/Lendly.git
    ```
 2. **Install Flutter dependencies:**
    ```sh
@@ -337,10 +337,12 @@ Interested? Reach out to discuss implementation!
 
 <div align="center">
 
+
 [![Download APK](https://img.shields.io/badge/Download-Android%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Arya182-ui/Lendly/releases/latest)
 [![Download iOS](https://img.shields.io/badge/Download-iOS%20App-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Arya182-ui/Lendly/releases/latest)
 [![Web App](https://img.shields.io/badge/Try-Web%20App-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/Arya182-ui/Lendly/releases/latest)
 
+(Stay Tunned we will provide for testing soon)
 </div>
 
 ### ✨ **What's New in v1.0.0**
@@ -360,9 +362,9 @@ Interested? Reach out to discuss implementation!
 
 | Platform | Download | Requirements | Size |
 |----------|----------|-------------|------|
-| **Android** | [APK Download](https://github.com/Arya182-ui/Lendly/releases/latest) | Android 5.0+ | ~15 MB |
-| **iOS** | [App Store*](https://github.com/Arya182-ui/Lendly/releases/latest) | iOS 11.0+ | ~20 MB |
-| **Web** | [Progressive Web App](https://github.com/Arya182-ui/Lendly/releases/latest) | Modern Browser | N/A |
+| **Android** | Coming Soon | Android 5.0+ | ~15 MB |
+| **iOS** | Coming Soon | iOS 11.0+ | ~20 MB |
+| **Web** | Coming Soon | Modern Browser | N/A |
 | **Windows** | Coming Soon | Windows 10+ | ~25 MB |
 | **macOS** | Coming Soon | macOS 10.14+ | ~22 MB |
 | **Linux** | Coming Soon | Ubuntu 18.04+ | ~23 MB |
