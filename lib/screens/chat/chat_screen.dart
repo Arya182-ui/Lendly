@@ -134,12 +134,10 @@ class _EnhancedChatScreenState extends State<EnhancedChatScreen>
       socket.connect();
 
       socket.onConnect((_) {
-        debugPrint('Socket connected');
         socket.emit('joinRoom', widget.chatId);
       });
 
       socket.onDisconnect((_) {
-        debugPrint('Socket disconnected');
       });
 
       // Acknowledge message sent
@@ -169,9 +167,7 @@ class _EnhancedChatScreenState extends State<EnhancedChatScreen>
       // Receive new messages
       socket.on('receiveMessage', (data) {
         if (mounted) {
-          print('Received message data: $data'); // Debug log
           final message = ChatMessage.fromMap(data);
-          print('Parsed message createdAt: ${message.createdAt}'); // Debug log
           if (!messages.any((m) => m.id == message.id)) {
             setState(() {
               messages.add(message);
@@ -274,7 +270,6 @@ class _EnhancedChatScreenState extends State<EnhancedChatScreen>
       });
 
     } catch (e) {
-      debugPrint('Socket connection failed: $e');
     }
   }
 

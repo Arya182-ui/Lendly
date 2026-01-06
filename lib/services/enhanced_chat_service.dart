@@ -319,11 +319,8 @@ class ChatService extends ChangeNotifier {
       ).timeout(timeout);
       
       if (response.statusCode != 200) {
-        debugPrint('Failed to mark as read: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      // Don't throw error for read status - it's not critical
-      debugPrint('Failed to mark messages as read: ${e.toString()}');
     }
   }
 

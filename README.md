@@ -42,15 +42,6 @@ Lendly revolutionizes how college students share resources through an intelligen
 
 ## ✨ Features Overview
 
-### 🔐 **Student Verification System**
-- College email verification
-- Student ID upload and verification
-- Admin approval process for guaranteed authenticity
-
----
-
-## ✨ Advanced Features Overview
-
 ### 🔐 **Smart Student Verification System**
 - **Email Verification** - College email authentication with domain validation
 - **Document Upload** - Student ID and enrollment verification
@@ -85,32 +76,33 @@ Lendly revolutionizes how college students share resources through an intelligen
 - **Event Creation** - Organize campus events and meetups
 - **Study Circles** - Form academic collaboration groups
 
-### 💳 **Comprehensive Digital Wallet**
-- **In-app Transactions** - Secure payment processing with multiple methods
-- **Digital Rewards** - Point-based reward system for active users
-- **Achievement System** - Unlock badges for different milestones
-- **Leaderboards** - Campus-wide and group-specific ranking systems
-- **Transaction History** - Detailed financial tracking and analytics
-- **Escrow Services** - Secure holding of funds until transaction completion
-- **Automatic Refunds** - Smart refund processing for failed transactions
+### 💳 **Smart Digital Wallet**
+- **Lendly Coins Balance** - Track your earned coins in real-time
+- **Earning Opportunities** - See all ways to earn more coins
+- **Transaction History** - Detailed log of all coin earnings and spending
+- **Spending Options** - Premium features unlockable with coins
+- **No Purchase Required** - All coins earned through positive actions
+- **Transparent Tracking** - Know exactly where your coins come from
+- **Future Integration** - Real money transactions coming soon
 
 ### 🛡️ **Advanced Safety & Trust Features**
-- **Identity Verification** - Multi-step verification process
-- **Trust Algorithms** - AI-powered user reliability assessment
+- **Professional Trust Scoring** - 0-100 score with 5 behavioral tiers
+- **ID Verification Rewards** - 20-point boost + 100 coins for verification
+- **Real-time Score Updates** - See trust changes immediately after actions
+- **Transparent Criteria** - Clear understanding of what affects your score
+- **Visual Trust Indicators** - Color-coded badges (Gold/Silver/Bronze/Orange/Red)
 - **Dispute Resolution** - Built-in mediation system for conflicts
-- **Report System** - Comprehensive reporting for inappropriate behavior
-- **Block & Restrict** - Advanced user management controls
+- **Report System** - Comprehensive reporting with trust score penalties
 - **Safe Meeting Points** - Campus-approved meeting location suggestions
-- **Emergency Contacts** - Quick access to campus security
-- **Transaction Insurance** - Protection against fraud and disputes
 
 ### 📊 **Smart Analytics & Insights**
 - **Personal Dashboard** - Track your lending/borrowing activities
-- **Spending Analytics** - Monitor your savings and expenses
-- **Trust Score Analytics** - Understand your community reputation
-- **Item Performance** - See how well your listings perform
-- **Campus Trends** - Discover what's popular in your college
-- **Environmental Impact** - Track your contribution to sustainability
+- **Trust Score Trends** - Visual charts showing your score history
+- **Coins Analytics** - See earning patterns and spending habits
+- **Item Performance** - View listing engagement and success rates
+- **Campus Rankings** - Your position on college leaderboards
+- **Impact Metrics** - Environmental and financial savings tracked
+- **Activity Heatmap** - Understand your peak engagement times
 
 ---
 
@@ -359,14 +351,17 @@ Interested? Reach out to discuss implementation!
 </div>
 
 ### ✨ **What's New in v1.0.0**
-- 🎓 **Student Verification System** - Complete college email and ID verification
-- 💬 **Real-time Messaging** - Chat with other students instantly
-- 👥 **Group Communities** - Join and create college-specific groups
-- 💳 **Digital Wallet** - Manage transactions and rewards
-- 📱 **Cross-platform Support** - Android, iOS, and Web
-- 🛡️ **Trust & Safety** - Comprehensive rating and reporting system
-- 🌍 **Location-based Discovery** - Find items near your campus
-- 📊 **User Dashboard** - Track your lending/borrowing activities
+- 🎓 **Student Verification System** - Complete college email and ID verification with rewards
+- 🏆 **Professional Trust Score System** - 0-100 scoring with 5 tiers (Excellent, Good, Average, Below Average, Poor)
+- 💰 **Lendly Coins Economy** - Earn coins through positive actions, spend on premium features
+- 🎨 **Visual Trust Badges** - Color-coded badges (Gold, Silver, Bronze, Orange, Red) on profiles and listings
+- 💬 **Real-time Messaging** - Enhanced chat with typing indicators, reactions, and file sharing
+- 👥 **Group Communities** - Join and create college-specific groups with advanced management
+- 📊 **Analytics Dashboard** - Track trust score trends, coin earnings, and impact metrics
+- 🏅 **Achievement System** - Unlock badges and compete on campus leaderboards
+- 📱 **Cross-platform Support** - Android, iOS, and Web with consistent experience
+- 🛡️ **Behavioral Safety** - Trust scores adjust based on user actions and reports
+- 🌍 **Location-based Discovery** - Find items near your campus with smart filters
 
 ### 📱 **Download Options**
 
@@ -415,22 +410,28 @@ Interested? Reach out to discuss implementation!
 ### 🚧 **Development Roadmap**
 
 #### **v1.1.0** *(Coming March 2026)*
-- 🔔 Push notifications
-- 📊 Advanced analytics dashboard
-- 🏆 Gamification with badges and leaderboards
-- 🌐 Multi-college support
+- 🔔 **Enhanced Push Notifications** - Real-time trust score change alerts
+- 📊 **Advanced Analytics Dashboard** - Visual trust score trends and coin analytics
+- 🏆 **Expanded Gamification** - New achievement categories and badges
+- 🌐 **Multi-college Network** - Cross-campus lending and connections
+- 🎯 **Trust Score Insights** - Detailed breakdown of score factors
+- 💰 **Premium Coin Features** - Listing boosts, profile customization, priority support
 
 #### **v1.2.0** *(Coming June 2026)*
-- 💰 Enhanced payment integration
-- 🤖 AI-powered item recommendations
-- 📸 Advanced image recognition
-- 🌍 Expanded location services
+- 💳 **Real Money Integration** - Convert coins to real money rewards
+- 🤖 **AI Trust Prediction** - Predict future trust scores based on behavior
+- 📸 **Advanced Image Recognition** - Auto-categorize items from photos
+- 🌍 **Expanded Location Services** - Campus maps and meeting point recommendations
+- 🔄 **Trust Score Appeals** - Contest unfair penalties with evidence
+- 📈 **Advanced Leaderboards** - Department-wise and year-wise rankings
 
 #### **v2.0.0** *(Coming December 2026)*
-- 🏢 Enterprise features for institutions
-- 📈 Advanced reporting and insights
-- 🔄 Marketplace integration
-- 🌟 Premium features
+- 🏢 **Enterprise Features** - Institutional admin dashboards
+- 📊 **Campus Analytics** - Trust trends and community health metrics
+- 🔄 **Marketplace Integration** - Partner with campus stores
+- 🌟 **Premium Tiers** - Subscription-based exclusive features
+- 🎓 **Alumni Network** - Connect with alumni for mentorship
+- 🤝 **Business Partnerships** - Sponsored rewards and offers
 
 ---
 

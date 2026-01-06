@@ -19,6 +19,9 @@ import '../../services/item_service.dart';
 import 'user_ratings_screen.dart';
 import '../wallet/wallet_screen.dart';
 import '../../utils/avatar_utils.dart';
+import '../../widgets/trust_score_widgets.dart';
+import '../../services/trust_score_service.dart';
+import '../../services/coins_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -815,7 +818,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            _AnimatedTrustScore(score: trustScore),
+            TrustScoreBadge(score: trustScore, showLabel: true, size: 32),
             const SizedBox(width: 16),
             Expanded(
               child: Row(
@@ -1607,85 +1610,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 }
 
 // --- UI Components ---
-
-class _AnimatedTrustScore extends StatefulWidget {
-  final int score;
-  const _AnimatedTrustScore({required this.score});
-
-  @override
-  State<_AnimatedTrustScore> createState() => _AnimatedTrustScoreState();
-}
-
-class _AnimatedTrustScoreState extends State<_AnimatedTrustScore>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 900),
-      vsync: this,
-    );
-    _animation = Tween<double>(begin: 0, end: widget.score.toDouble()).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _controller.forward();
-  }
-
-  @override
-  void didUpdateWidget(covariant _AnimatedTrustScore oldWidget) {
-    if (oldWidget.score != widget.score) {
-      _controller.reset();
-      _animation = Tween<double>(begin: 0, end: widget.score.toDouble()).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-      );
-      _controller.forward();
-    }
-    super.didUpdateWidget(oldWidget);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Trust score: ${widget.score}',
-      child: Column(
-        children: [
-          SizedBox(
-            width: 56,
-            height: 56,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: _animation.value / 100,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                  strokeWidth: 6,
-                ),
-                AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, child) => Text(
-                    '${_animation.value.toInt()}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text('Trust', style: TextStyle(fontSize: 12)),
-        ],
-      ),
-    );
-  }
-}
 
 class _TrustStat extends StatelessWidget {
   final String label;

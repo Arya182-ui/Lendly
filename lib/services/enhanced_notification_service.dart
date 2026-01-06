@@ -239,7 +239,6 @@ class EnhancedNotificationService extends ChangeNotifier {
         headers['Authorization'] = 'Bearer $token';
       }
     } catch (e) {
-      debugPrint('Failed to get auth token: $e');
     }
     
     return headers;
@@ -393,7 +392,6 @@ class EnhancedNotificationService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint('Error loading categories: $e');
     }
   }
 

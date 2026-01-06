@@ -92,7 +92,6 @@ class AppLogger {
       _initialized = true;
       info('Logger initialized', tag: 'AppLogger');
     } catch (e) {
-      debugPrint('Failed to initialize logger: $e');
     }
   }
 
@@ -277,7 +276,6 @@ class AppLogger {
       final logsJson = _logBuffer.take(200).map((e) => e.toJson()).toList();
       await prefs.setString('crash_logs', jsonEncode(logsJson));
     } catch (e) {
-      debugPrint('Failed to persist logs: $e');
     }
   }
 
@@ -292,7 +290,6 @@ class AppLogger {
         return list.map((e) => _logEntryFromJson(e)).toList();
       }
     } catch (e) {
-      debugPrint('Failed to get persisted logs: $e');
     }
     return null;
   }
@@ -353,7 +350,6 @@ class AppLogger {
     };
     const reset = '\x1B[0m';
     
-    debugPrint('$color${entry.toString()}$reset');
   }
 
   Future<void> _writeToFile(LogEntry entry) async {
