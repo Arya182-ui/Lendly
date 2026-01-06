@@ -122,11 +122,6 @@ Lendly revolutionizes how college students share resources through an intelligen
 
 </div>
 
-### 🎥 **Live Demo & Video Walkthrough**
-- **📱 Interactive Demo**: [Try Lendly Web App](https://lendly-demo.vercel.app)
-- **🎬 YouTube Demo**: [Watch Full Walkthrough](https://youtube.com/watch?v=demo-link)
-- **📋 Pitch Deck**: [View Presentation](https://pitch-deck-link.pdf)
-- **🏆 Imagine Cup Submission**: [Microsoft Submission Portal](https://imaginecup.microsoft.com/submissions)
 
 ---
 
