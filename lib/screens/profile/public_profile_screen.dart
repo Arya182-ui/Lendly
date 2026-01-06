@@ -9,6 +9,7 @@ import 'package:lendly/services/session_service.dart';
 import '../chat/chat_screen.dart';
 import '../../widgets/enhanced_ui_components.dart';
 import '../../widgets/app_image.dart';
+import '../../widgets/trust_score_widgets.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String uid;
@@ -827,15 +828,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                     Colors.grey[200] ?? Colors.grey,
                   ],
                 ),
-                _buildStatCard(
-                  icon: Icons.shield,
-                  value: '$trustScore%',
-                  label: 'Trust Score',
-                  color: Colors.grey[700] ?? Colors.grey,
-                  gradient: [
-                    Colors.grey[100] ?? Colors.grey,
-                    Colors.grey[200] ?? Colors.grey,
-                  ],
+                Container(
+                  padding: EdgeInsets.all(16),
+                  child: TrustScoreBadge(score: trustScore, showLabel: true, size: 20),
                 ),
                 _buildStatCard(
                   icon: Icons.swap_horiz,

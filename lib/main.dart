@@ -58,7 +58,6 @@ void main() async {
   } catch (e) {
     logger.error('App initialization failed', tag: 'Main', data: {'error': e.toString()});
     // Continue anyway, the app can work with some services failing
-    debugPrint('Initialization error: $e');
   }
   
   runApp(

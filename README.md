@@ -42,15 +42,6 @@ Lendly revolutionizes how college students share resources through an intelligen
 
 ## ✨ Features Overview
 
-### 🔐 **Student Verification System**
-- College email verification
-- Student ID upload and verification
-- Admin approval process for guaranteed authenticity
-
----
-
-## ✨ Advanced Features Overview
-
 ### 🔐 **Smart Student Verification System**
 - **Email Verification** - College email authentication with domain validation
 - **Document Upload** - Student ID and enrollment verification
@@ -85,32 +76,33 @@ Lendly revolutionizes how college students share resources through an intelligen
 - **Event Creation** - Organize campus events and meetups
 - **Study Circles** - Form academic collaboration groups
 
-### 💳 **Comprehensive Digital Wallet**
-- **In-app Transactions** - Secure payment processing with multiple methods
-- **Digital Rewards** - Point-based reward system for active users
-- **Achievement System** - Unlock badges for different milestones
-- **Leaderboards** - Campus-wide and group-specific ranking systems
-- **Transaction History** - Detailed financial tracking and analytics
-- **Escrow Services** - Secure holding of funds until transaction completion
-- **Automatic Refunds** - Smart refund processing for failed transactions
+### 💳 **Smart Digital Wallet**
+- **Lendly Coins Balance** - Track your earned coins in real-time
+- **Earning Opportunities** - See all ways to earn more coins
+- **Transaction History** - Detailed log of all coin earnings and spending
+- **Spending Options** - Premium features unlockable with coins
+- **No Purchase Required** - All coins earned through positive actions
+- **Transparent Tracking** - Know exactly where your coins come from
+- **Future Integration** - Real money transactions coming soon
 
 ### 🛡️ **Advanced Safety & Trust Features**
-- **Identity Verification** - Multi-step verification process
-- **Trust Algorithms** - AI-powered user reliability assessment
+- **Professional Trust Scoring** - 0-100 score with 5 behavioral tiers
+- **ID Verification Rewards** - 20-point boost + 100 coins for verification
+- **Real-time Score Updates** - See trust changes immediately after actions
+- **Transparent Criteria** - Clear understanding of what affects your score
+- **Visual Trust Indicators** - Color-coded badges (Gold/Silver/Bronze/Orange/Red)
 - **Dispute Resolution** - Built-in mediation system for conflicts
-- **Report System** - Comprehensive reporting for inappropriate behavior
-- **Block & Restrict** - Advanced user management controls
+- **Report System** - Comprehensive reporting with trust score penalties
 - **Safe Meeting Points** - Campus-approved meeting location suggestions
-- **Emergency Contacts** - Quick access to campus security
-- **Transaction Insurance** - Protection against fraud and disputes
 
 ### 📊 **Smart Analytics & Insights**
 - **Personal Dashboard** - Track your lending/borrowing activities
-- **Spending Analytics** - Monitor your savings and expenses
-- **Trust Score Analytics** - Understand your community reputation
-- **Item Performance** - See how well your listings perform
-- **Campus Trends** - Discover what's popular in your college
-- **Environmental Impact** - Track your contribution to sustainability
+- **Trust Score Trends** - Visual charts showing your score history
+- **Coins Analytics** - See earning patterns and spending habits
+- **Item Performance** - View listing engagement and success rates
+- **Campus Rankings** - Your position on college leaderboards
+- **Impact Metrics** - Environmental and financial savings tracked
+- **Activity Heatmap** - Understand your peak engagement times
 
 ---
 
@@ -371,30 +363,100 @@ flutter build linux --release
 - **Event Planning**: Organize study sessions and social events
 - **Group Chat**: Engage in community discussions
 
-### 🏆 **Rewards & Achievements System**
+### 🏆 **Advanced Trust Score System**
 
-#### **Earning Points & Badges**
-- **Daily Login**: 5 points for opening the app
-- **Complete Profile**: 50 points for 100% profile completion
-- **First Lend**: 100 points for your first lending transaction
-- **Helpful Reviews**: 10 points per helpful review received
-- **Group Participation**: 25 points for joining groups
-- **Friend Referrals**: 150 points per successful referral
-- **Community Helper**: 200 points for achieving high trust score
+Lendly uses a **professional, behavior-driven trust scoring system** that reflects your reliability and engagement in the campus community.
 
-#### **Achievement Categories**
-- 🎓 **Academic**: Study-related achievements and collaborations
-- 🤝 **Social**: Friendship and community building milestones
-- 💰 **Financial**: Savings and smart spending achievements
-- 🌱 **Sustainability**: Environmental impact contributions
-- ⭐ **Trust**: Reliability and trustworthiness milestones
-- 🏆 **Special**: Seasonal and limited-time achievements
+#### **🎯 How Trust Scores Work**
+- **Starting Score**: Every new user begins at **50/100** (Average tier)
+- **ID Verification Boost**: Complete ID verification → **Instant jump to 70/100** (Good tier)
+- **Dynamic Scoring**: Score adjusts based on your actions and interactions
+- **Range**: Scores range from **0 to 100** with 5 distinct trust tiers
 
-#### **Leaderboards & Competition**
-- **Campus Rankings**: See top contributors in your college
-- **Group Leaderboards**: Compete within your groups
-- **Monthly Challenges**: Participate in themed competitions
-- **Seasonal Events**: Special events with exclusive rewards
+#### **⭐ Trust Score Tiers**
+
+| Tier | Score Range | Badge | Benefits |
+|------|-------------|-------|----------|
+| 🏆 **Excellent** | 90-100 | Gold Badge | Priority listings, higher visibility, premium features access |
+| ⭐ **Good** | 70-89 | Silver Badge | Standard features, reliable reputation, good visibility |
+| 🥉 **Average** | 50-69 | Bronze Badge | Basic features, neutral reputation |
+| ⚠️ **Below Average** | 30-49 | Orange Badge | Limited visibility, caution indicator |
+| ❌ **Poor** | 0-29 | Red Badge | Restricted features, trust rebuilding required |
+
+#### **📈 What Affects Your Trust Score**
+
+**Positive Actions (+2 to +20):**
+- ✅ Complete transactions on time (+5 to +15)
+- ⭐ Receive 4-5 star ratings (+10 to +20)
+- 📱 Active engagement (listings, messages, groups) (+2 to +5)
+- 🎯 ID verification completion (+20 boost)
+- 🤝 Helpful community participation (+3 to +8)
+
+**Negative Actions (-2 to -20):**
+- ⏰ Late returns or transaction delays (-5 to -15)
+- ⭐ Receive 1-2 star ratings (-10 to -20)
+- 🚫 Reported inappropriate behavior (-15 to -30)
+- ❌ Transaction cancellations (-3 to -8)
+- 📵 Inactive account (gradual decrease)
+
+#### **🎨 Visual Trust Indicators**
+- **Color-coded badges** displayed on profiles, item listings, and chat
+- **Score prominently shown** on home screen and profile
+- **Tier emoji badges** for quick recognition (🏆⭐🥉⚠️❌)
+- **Trust trends** showing score changes over time
+
+### 💰 **Lendly Coins Economy**
+
+Introducing **Lendly Coins** - our restricted, behavior-driven economy that rewards good actions and enables premium features.
+
+#### **💎 What Are Lendly Coins?**
+- **In-app currency** earned through positive actions
+- **Cannot be purchased** - only earned through engagement
+- **Spend on premium features** like listing boosts and special items
+- **Track your earnings** in the dedicated wallet section
+
+#### **🪙 How to Earn Coins**
+
+| Action | Coins Earned | Frequency |
+|--------|-------------|----------|
+| 🆔 **ID Verification** | 100 coins | One-time |
+| 🎉 **First Transaction** | 50 coins | One-time |
+| ✅ **Complete Transaction** | 20 coins | Per transaction |
+| ⭐ **Give Rating** | 5 coins | Per rating |
+| 📝 **List New Item** | -10 coins | Per listing (fee) |
+| 🎁 **Daily Login Bonus** | 2-5 coins | Daily |
+| 🏆 **Achievement Unlock** | 25-100 coins | Per achievement |
+| 🤝 **Help Community** | 10-30 coins | Various activities |
+
+#### **💸 Spending Opportunities**
+
+**Coming Soon:**
+- 🚀 **Boost Listings** (50 coins) - Feature your item at the top
+- ⭐ **Profile Customization** (100 coins) - Premium themes and badges
+- 🎯 **Priority Support** (75 coins) - Get help faster
+- 🏅 **Exclusive Features** (150 coins) - Access beta features early
+
+#### **📊 Wallet Dashboard**
+- **Current balance** displayed prominently on home screen
+- **Transaction history** showing all earnings and spending
+- **Earning opportunities** with suggested actions to earn more
+- **Spending options** showcasing what you can unlock
+
+### 🎮 **Achievements & Rewards**
+
+#### **🏅 Achievement Categories**
+- 🎓 **Academic Excellence**: Study group participation, textbook sharing
+- 🤝 **Social Butterfly**: Friend connections, community engagement
+- 💰 **Smart Saver**: Successful transactions, money saved
+- 🌱 **Eco Warrior**: Sustainability impact, items shared vs bought
+- ⭐ **Trust Builder**: High ratings received, reliable transactions
+- 🏆 **Campus Legend**: Special milestones and rare achievements
+
+#### **📈 Leaderboards & Rankings**
+- **Campus Top Users**: See who's leading in trust score and activity
+- **Weekly Champions**: Recognition for most helpful users
+- **Monthly Milestones**: Special achievements and rewards
+- **Group Competitions**: Compete within your study circles
 
 ---
 
@@ -419,11 +481,13 @@ Lendly/
 │   │   ├── 🔧 services/              # Business Logic Layer
 │   │   │   ├── enhanced_chat_service.dart        # Real-time messaging
 │   │   │   ├── enhanced_notification_service.dart # Push notifications
+│   │   │   ├── trust_score_service.dart          # Trust score API client
+│   │   │   ├── coins_service.dart                # Coins economy API client
 │   │   │   ├── friendship_service.dart           # Friend management
-│   │   │   ├── group_service.dart               # Group operations
-│   │   │   ├── reward_service.dart              # Gamification
-│   │   │   ├── socket_service.dart              # WebSocket connections
-│   │   │   └── firebase_auth_service.dart       # Authentication
+│   │   │   ├── group_service.dart                # Group operations
+│   │   │   ├── reward_service.dart               # Gamification
+│   │   │   ├── socket_service.dart               # WebSocket connections
+│   │   │   └── firebase_auth_service.dart        # Authentication
 │   │   ├── 📊 providers/             # State Management (Provider Pattern)
 │   │   │   ├── auth_provider.dart
 │   │   │   ├── chat_provider.dart
@@ -431,6 +495,7 @@ Lendly/
 │   │   │   └── theme_provider.dart
 │   │   ├── 🧩 widgets/               # Reusable UI Components
 │   │   │   ├── common/               # Shared widgets
+│   │   │   ├── trust_score_widgets.dart  # Trust score badges & cards
 │   │   │   ├── chat/                 # Chat-specific widgets
 │   │   │   ├── items/                # Item-related widgets
 │   │   │   └── forms/                # Form components
@@ -479,6 +544,9 @@ Lendly/
 │   │   ├── auth.js                   # Authentication & rate limiting
 │   │   ├── errorHandler.js           # Error handling
 │   │   └── validation.js             # Input validation
+│   ├── 🏆 managers/                  # Business Logic Managers
+│   │   ├── TrustScoreManager.js      # Professional trust scoring system
+│   │   └── CoinsManager.js           # Coins economy & rewards
 │   ├── 🔧 utils/                     # Backend Utilities
 │   │   ├── firestore-helpers.js      # Database helpers
 │   │   ├── validators.js             # Data validation
@@ -497,6 +565,44 @@ Lendly/
     ├── DEPLOYMENT_GUIDE.md           # Deployment instructions
     └── ARCHITECTURE.md               # System architecture
 ```
+
+### **🔌 Backend API Architecture**
+
+#### **Trust Score Management**
+```javascript
+// TrustScoreManager - Professional behavioral scoring
+- initializeTrustScore(uid) → Sets base score to 50
+- onIDVerification(uid) → Boosts score from 50 to 70 (+20)
+- onTransactionComplete(uid, metadata) → ±5 to ±15 based on performance
+- onRatingReceived(uid, rating, metadata) → ±10 to ±20 based on rating
+- getCurrentScore(uid) → Returns current score, tier, and history
+- getTrustHistory(uid, limit) → Returns score change timeline
+```
+
+#### **Coins Economy Management**
+```javascript
+// CoinsManager - Restricted behavioral currency
+- initializeWallet(uid, initialBalance) → Creates wallet with 0 coins
+- onIDVerification(uid) → Awards 100 coins for verification
+- onTransactionComplete(uid, transactionData) → Awards 20 coins
+- onRatingReceived(uid, ratingData) → Awards 5 coins
+- chargeForListing(uid, amount) → Deducts 10 coins for listing fee
+- getWallet(uid) → Returns balance, opportunities, spending options
+- getTransactionHistory(uid, limit) → Returns coin transaction log
+```
+
+#### **Key API Endpoints**
+
+| Endpoint | Method | Purpose | Auth Required |
+|----------|--------|---------|---------------|
+| `/api/user/:uid/trust-score` | GET | Fetch user's current trust score & tier | ✅ |
+| `/api/user/:uid/wallet` | GET | Fetch coin balance & transaction history | ✅ |
+| `/api/user/:uid/coin-transactions` | GET | Fetch detailed coin earning/spending log | ✅ |
+| `/api/transactions/:id/mark-late` | POST | Apply late return penalty to trust score | ✅ |
+| `/api/admin/verify-id/:uid` | POST | Verify ID (awards +20 trust, 100 coins) | Admin |
+| `/api/items` | POST | Create listing (charges 10 coins) | ✅ |
+| `/api/transactions/:id/complete` | POST | Complete transaction (awards coins & trust) | ✅ |
+| `/api/user/:uid/rate` | POST | Rate user (awards coins to rater) | ✅ |
 
 ### **🔗 Service Dependencies & Integrations**
 ```mermaid
@@ -582,7 +688,37 @@ graph TB
 
 ---
 
-## 🎯 Use Cases
+## � Why Lendly Stands Out
+
+### **Feature Comparison**
+
+| Feature | Traditional Lending Apps | Lendly |
+|---------|-------------------------|--------|
+| **Trust System** | Basic 5-star rating | Professional 0-100 score with 5 tiers |
+| **Verification** | Email only | Email + Student ID + Admin approval |
+| **Rewards** | No rewards | Behavioral coins economy + achievements |
+| **Community** | General users | Verified college students only |
+| **Visual Trust** | No indicators | Color-coded badges (Gold/Silver/Bronze/Orange/Red) |
+| **Score Transparency** | Hidden algorithms | Clear, documented scoring criteria |
+| **Behavioral Incentives** | None | +20 trust boost & 100 coins for verification |
+| **Real-time Updates** | Delayed | Instant trust score & coin updates |
+| **Analytics** | Basic stats | Comprehensive trust trends & impact metrics |
+| **Safety** | Basic reporting | Trust score penalties + behavioral tracking |
+
+### **Lendly Advantages**
+- ✅ **Campus-focused** - Only verified students, safer community
+- ✅ **Transparent Trust** - Know exactly how actions affect your score
+- ✅ **Earn While You Share** - Coins for positive behavior
+- ✅ **Visual Clarity** - Color-coded badges for instant trust recognition
+- ✅ **Professional Scoring** - Industry-standard 0-100 scale with tiers
+- ✅ **No Purchase Required** - All rewards earned through engagement
+- ✅ **Clear Recovery Path** - Rebuild trust through positive actions
+- ✅ **Real-time Feedback** - See score changes immediately
+- ✅ **Comprehensive Analytics** - Track your growth and impact
+
+---
+
+## �🎯 Use Cases
 
 <div align="center">
 
@@ -599,11 +735,16 @@ graph TB
 
 ## 🔒 Safety & Trust Features
 
-- ✅ **Student Verification** - Only verified college students
-- ⭐ **Trust Score System** - Rate and review users
-- 🛡️ **Safe Chat** - Moderated messaging system
-- 📍 **Location Sharing** - Optional for item pickup
-- 🚨 **Report System** - Report inappropriate behavior
+- ✅ **Student Verification** - Multi-step verification with ID upload
+- ⭐ **Professional Trust Scoring** - 0-100 score with 5 tiers (Excellent, Good, Average, Below Average, Poor)
+- 🏆 **Verification Rewards** - +20 trust score boost + 100 coins for ID verification
+- 🎨 **Visual Trust Badges** - Color-coded badges on all profiles and listings
+- 💰 **Behavioral Economy** - Earn coins for positive actions, spend on premium features
+- 🛡️ **Safe Chat** - Encrypted messaging with trust indicators
+- 📍 **Location Privacy** - Optional location sharing for item pickup
+- 🚨 **Report System** - Comprehensive reporting with trust score penalties
+- 📊 **Transparent Tracking** - See exactly how your actions affect trust score
+- 🔄 **Score Recovery** - Clear path to rebuild trust through positive actions
 
 ---
 
@@ -667,14 +808,17 @@ Interested? Reach out to discuss implementation!
 </div>
 
 ### ✨ **What's New in v1.0.0**
-- 🎓 **Student Verification System** - Complete college email and ID verification
-- 💬 **Real-time Messaging** - Chat with other students instantly
-- 👥 **Group Communities** - Join and create college-specific groups
-- 💳 **Digital Wallet** - Manage transactions and rewards
-- 📱 **Cross-platform Support** - Android, iOS, and Web
-- 🛡️ **Trust & Safety** - Comprehensive rating and reporting system
-- 🌍 **Location-based Discovery** - Find items near your campus
-- 📊 **User Dashboard** - Track your lending/borrowing activities
+- 🎓 **Student Verification System** - Complete college email and ID verification with rewards
+- 🏆 **Professional Trust Score System** - 0-100 scoring with 5 tiers (Excellent, Good, Average, Below Average, Poor)
+- 💰 **Lendly Coins Economy** - Earn coins through positive actions, spend on premium features
+- 🎨 **Visual Trust Badges** - Color-coded badges (Gold, Silver, Bronze, Orange, Red) on profiles and listings
+- 💬 **Real-time Messaging** - Enhanced chat with typing indicators, reactions, and file sharing
+- 👥 **Group Communities** - Join and create college-specific groups with advanced management
+- 📊 **Analytics Dashboard** - Track trust score trends, coin earnings, and impact metrics
+- 🏅 **Achievement System** - Unlock badges and compete on campus leaderboards
+- 📱 **Cross-platform Support** - Android, iOS, and Web with consistent experience
+- 🛡️ **Behavioral Safety** - Trust scores adjust based on user actions and reports
+- 🌍 **Location-based Discovery** - Find items near your campus with smart filters
 
 ### 📱 **Download Options**
 
@@ -723,22 +867,28 @@ Interested? Reach out to discuss implementation!
 ### 🚧 **Development Roadmap**
 
 #### **v1.1.0** *(Coming March 2026)*
-- 🔔 Push notifications
-- 📊 Advanced analytics dashboard
-- 🏆 Gamification with badges and leaderboards
-- 🌐 Multi-college support
+- 🔔 **Enhanced Push Notifications** - Real-time trust score change alerts
+- 📊 **Advanced Analytics Dashboard** - Visual trust score trends and coin analytics
+- 🏆 **Expanded Gamification** - New achievement categories and badges
+- 🌐 **Multi-college Network** - Cross-campus lending and connections
+- 🎯 **Trust Score Insights** - Detailed breakdown of score factors
+- 💰 **Premium Coin Features** - Listing boosts, profile customization, priority support
 
 #### **v1.2.0** *(Coming June 2026)*
-- 💰 Enhanced payment integration
-- 🤖 AI-powered item recommendations
-- 📸 Advanced image recognition
-- 🌍 Expanded location services
+- 💳 **Real Money Integration** - Convert coins to real money rewards
+- 🤖 **AI Trust Prediction** - Predict future trust scores based on behavior
+- 📸 **Advanced Image Recognition** - Auto-categorize items from photos
+- 🌍 **Expanded Location Services** - Campus maps and meeting point recommendations
+- 🔄 **Trust Score Appeals** - Contest unfair penalties with evidence
+- 📈 **Advanced Leaderboards** - Department-wise and year-wise rankings
 
 #### **v2.0.0** *(Coming December 2026)*
-- 🏢 Enterprise features for institutions
-- 📈 Advanced reporting and insights
-- 🔄 Marketplace integration
-- 🌟 Premium features
+- 🏢 **Enterprise Features** - Institutional admin dashboards
+- 📊 **Campus Analytics** - Trust trends and community health metrics
+- 🔄 **Marketplace Integration** - Partner with campus stores
+- 🌟 **Premium Tiers** - Subscription-based exclusive features
+- 🎓 **Alumni Network** - Connect with alumni for mentorship
+- 🤝 **Business Partnerships** - Sponsored rewards and offers
 
 ---
 

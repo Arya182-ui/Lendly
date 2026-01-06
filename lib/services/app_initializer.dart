@@ -68,7 +68,6 @@ class AppInitializer {
       logger.info('Logger initialized', tag: 'AppInitializer');
     } catch (e) {
       _initErrors.add('Logger: $e');
-      debugPrint('Failed to initialize logger: $e');
     }
   }
 
@@ -134,7 +133,6 @@ class AppInitializer {
       
       logger.info('App disposed successfully', tag: 'AppInitializer');
     } catch (e) {
-      debugPrint('Error during app dispose: $e');
     }
   }
 

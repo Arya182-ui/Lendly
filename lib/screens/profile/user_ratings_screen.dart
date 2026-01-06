@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../services/rating_service.dart';
 import '../../widgets/avatar_options.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../widgets/trust_score_widgets.dart';
+import '../../services/trust_score_service.dart';
 
 class UserRatingsScreen extends StatefulWidget {
   final String uid;
@@ -134,29 +136,7 @@ class _UserRatingsScreenState extends State<UserRatingsScreen> {
                 Expanded(
                   child: Column(
                     children: [
-                      Text(
-                        '$trustScore',
-                        style: const TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1DBF73),
-                        ),
-                      ),
-                      const Text(
-                        'Trust Score',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1DBF73),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _getTrustLevel(trustScore),
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
+                      TrustScoreBadge(score: trustScore, showLabel: true, size: 24),
                     ],
                   ),
                 ),
@@ -166,14 +146,6 @@ class _UserRatingsScreenState extends State<UserRatingsScreen> {
         ),
       ),
     );
-  }
-
-  String _getTrustLevel(int trustScore) {
-    if (trustScore >= 80) return 'Excellent';
-    if (trustScore >= 60) return 'Good';
-    if (trustScore >= 40) return 'Fair';
-    if (trustScore >= 20) return 'Poor';
-    return 'New User';
   }
 
   Widget _buildRatingItem(Map<String, dynamic> rating) {
