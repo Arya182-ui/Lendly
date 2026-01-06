@@ -1,6 +1,4 @@
 # 🎓 Lendly - Campus Sharing Made Simple
-## 🏆 Microsoft Imagine Cup 2026 Submission
-
 <div align="center">
 
 ![Lendly Logo](assets/images/logo.png)
