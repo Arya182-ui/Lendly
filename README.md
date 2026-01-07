@@ -120,9 +120,9 @@ Lendly revolutionizes how college students share resources through an intelligen
     <th>Item Discovery</th>
   </tr>
   <tr>
-    <td><img src="assets/Demo images/login.png" width="220"/></td>
-    <td><img src="assets/Demo images/main.png" width="220"/></td>
-    <td><img src="assets/Demo images/discover_iteams.png" width="220"/></td>
+    <td><img src="assets/Demo_images/login.png" width="220"/></td>
+    <td><img src="assets/Demo_images/main.png" width="220"/></td>
+    <td><img src="assets/Demo_images/discover_iteams.png" width="220"/></td>
   </tr>
 </table>
 
@@ -135,9 +135,9 @@ Lendly revolutionizes how college students share resources through an intelligen
     <th>Rewards System</th>
   </tr>
   <tr>
-    <td><img src="assets/Demo images/messages.png" width="220"/></td>
-    <td><img src="assets/Demo images/group.png" width="220"/></td>
-    <td><img src="assets/Demo images/wallet.png" width="220"/></td>
+    <td><img src="assets/Demo_images/messages.png" width="220"/></td>
+    <td><img src="assets/Demo_images/group.png" width="220"/></td>
+    <td><img src="assets/Demo_images/wallet.png" width="220"/></td>
   </tr>
 </table>
 
