@@ -150,10 +150,8 @@ Clean, intuitive interface designed specifically for college students with moder
 
 
 ### 🎥 **Live Demo & Video Walkthrough**
-- **📱 Interactive Demo**: [Try Lendly Web App](https://lendly-demo.vercel.app)
-- **🎬 YouTube Demo**: [Watch Full Walkthrough](https://youtube.com/watch?v=demo-link)
-- **📋 Pitch Deck**: [View Presentation](https://pitch-deck-link.pdf)
-- **🏆 Imagine Cup Submission**: [Microsoft Submission Portal](https://imaginecup.microsoft.com/submissions)
+ 
+- Demo provided soon.....
 
 ---
 
@@ -849,9 +847,9 @@ Interested? Reach out to discuss implementation!
 
 | Platform | Download | Requirements | Size |
 |----------|----------|-------------|------|
-| **Android** | [APK Download](https://github.com/Arya182-ui/Lendly/releases/latest) | Android 5.0+ | ~15 MB |
-| **iOS** | [App Store*](https://github.com/Arya182-ui/Lendly/releases/latest) | iOS 11.0+ | ~20 MB |
-| **Web** | [Progressive Web App](https://github.com/Arya182-ui/Lendly/releases/latest) | Modern Browser | N/A |
+| **Android** | Coming Soon | Android 5.0+ | ~15 MB |
+| **iOS** | Coming Soon | iOS 11.0+ | ~20 MB |
+| **Web** | Coming Soon | Modern Browser | N/A |
 | **Windows** | Coming Soon | Windows 10+ | ~25 MB |
 | **macOS** | Coming Soon | macOS 10.14+ | ~22 MB |
 | **Linux** | Coming Soon | Ubuntu 18.04+ | ~23 MB |
@@ -945,7 +943,7 @@ Special thanks to:
 
 **🚀 Ready to revolutionize campus sharing?**
 
-[📱 Download Now](https://github.com/Arya182-ui/Lendly/releases) • [🐛 Report Bug](https://github.com/Arya182-ui/Lendly/issues) • [💡 Request Feature](https://github.com/Arya182-ui/Lendly/issues)
+[🐛 Report Bug](https://github.com/Arya182-ui/Lendly/issues) • [💡 Request Feature](https://github.com/Arya182-ui/Lendly/issues)
 
 ---
 
