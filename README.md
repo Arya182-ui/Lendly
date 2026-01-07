@@ -1,7 +1,10 @@
 # 🎓 Lendly - Campus Sharing Made Simple
 <div align="center">
 
-![Lendly Logo](assets/images/logo.png)
+<div align="center">
+  <img src="assets/images/logo.png" alt="Lendly Logo" width="200"/>
+</div>
+
 
 **📚 Lend • 🤝 Borrow • 💰 Sell • 🌱 Share • 💬 Connect**
 
@@ -110,15 +113,37 @@ Lendly revolutionizes how college students share resources through an intelligen
 
 <div align="center">
 
-| Authentication Flow | Main Dashboard | Item Discovery |
-|---------------------|----------------|----------------|
-| ![Auth](assets/images/welcome_illustration.png) | ![Dashboard](assets/images/signup_illustration.png) | ![Discovery](assets/images/login_illustration.png) |
+<table>
+  <tr>
+    <th>Authentication Flow</th>
+    <th>Main Dashboard</th>
+    <th>Item Discovery</th>
+  </tr>
+  <tr>
+    <td><img src="assets/Demo images/login.png" width="220"/></td>
+    <td><img src="assets/Demo images/main.png" width="220"/></td>
+    <td><img src="assets/Demo images/discover_iteams.png" width="220"/></td>
+  </tr>
+</table>
 
-| Real-time Chat | Group Management | Rewards System |
-|----------------|------------------|----------------|
-| ![Chat](assets/images/welcome_illustration.png) | ![Groups](assets/images/signup_illustration.png) | ![Rewards](assets/images/login_illustration.png) |
+<br/>
 
-*Clean, intuitive interface designed specifically for college students with modern Material Design principles*
+<table>
+  <tr>
+    <th>Real-time Chat</th>
+    <th>Group Management</th>
+    <th>Rewards System</th>
+  </tr>
+  <tr>
+    <td><img src="assets/Demo images/messages.png" width="220"/></td>
+    <td><img src="assets/Demo images/group.png" width="220"/></td>
+    <td><img src="assets/Demo images/wallet.png" width="220"/></td>
+  </tr>
+</table>
+
+<p><i>
+Clean, intuitive interface designed specifically for college students with modern Material Design principles
+</i></p>
 
 </div>
 
@@ -458,7 +483,7 @@ Special thanks to:
 
 **🚀 Ready to revolutionize campus sharing?**
 
-[📱 Download Now](https://github.com/Arya182-ui/Lendly/releases) • [🐛 Report Bug](https://github.com/Arya182-ui/Lendly/issues) • [💡 Request Feature](https://github.com/Arya182-ui/Lendly/issues)
+[🐛 Report Bug](https://github.com/Arya182-ui/Lendly/issues) • [💡 Request Feature](https://github.com/Arya182-ui/Lendly/issues)
 
 ---
 
