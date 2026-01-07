@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../../services/api_client.dart';
 import '../../services/friendship_service.dart';
 import '../../config/env_config.dart';
@@ -10,6 +11,7 @@ import '../chat/chat_screen.dart';
 import '../../widgets/enhanced_ui_components.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/trust_score_widgets.dart';
+import '../../providers/user_provider.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String uid;
@@ -303,8 +305,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
       );
       setState(() {
         profile = data;
-        isLoading = false;
       });
+      // Add delay to ensure UI renders properly before hiding loading
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         isError = true;
@@ -387,7 +395,31 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
     final theme = Theme.of(context);
     if (isLoading) {
       return Scaffold(
-        body: _buildPublicProfileSkeleton(),
+        appBar: AppBar(
+          title: const Text('Profile'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                strokeWidth: 3,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Loading profile...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     if (isError || profile == null) {
@@ -460,31 +492,50 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                           children: [
                             const SizedBox(height: 40),
                             // Profile Avatar with Animation
-                            Hero(
-                              tag: 'avatar_${widget.uid}',
-                              child: Container(
-                                width: 120,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 8),
+                            Consumer<UserProvider>(
+                              builder: (context, userProvider, child) {
+                                // Use fresh avatar from provider if viewing own profile
+                                final displayAvatar = (widget.uid == myUid && userProvider.avatar != null)
+                                  ? userProvider.avatar!
+                                  : avatar;
+                                final timestamp = DateTime.now().millisecondsSinceEpoch;
+                                
+                                return Hero(
+                                  tag: 'avatar_${widget.uid}',
+                                  child: Container(
+                                    key: ValueKey('public_avatar_${displayAvatar}_$timestamp'),
+                                    width: 120,
+                                    height: 120,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                      border: Border.all(color: Colors.white, width: 4),
                                     ),
-                                  ],
-                                  border: Border.all(color: Colors.white, width: 4),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                child: (avatar.isNotEmpty && AvatarOptions.avatarOptions.contains(avatar))
-                                    ? SvgPicture.asset(avatar, fit: BoxFit.contain)
-                                    : SvgPicture.asset(AvatarOptions.avatarOptions[0], fit: BoxFit.contain),
-                              ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: (displayAvatar.isNotEmpty && AvatarOptions.avatarOptions.contains(displayAvatar))
+                                        ? SvgPicture.asset(
+                                            displayAvatar,
+                                            key: ValueKey('svg_${displayAvatar}_$timestamp'),
+                                            fit: BoxFit.contain,
+                                          )
+                                        : SvgPicture.asset(
+                                            AvatarOptions.avatarOptions[0],
+                                            key: ValueKey('default_public_avatar_$timestamp'),
+                                            fit: BoxFit.contain,
+                                          ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
                           const SizedBox(height: 16),
                           // Name with verification badge
                           Padding(

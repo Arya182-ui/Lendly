@@ -4,6 +4,7 @@ import '../../services/impact_service.dart';
 import '../../services/session_service.dart';
 import '../../services/data_cache_manager.dart';
 import '../../services/api_client.dart';
+import '../../config/app_colors.dart';
 import '../../widgets/app_image.dart';
 
 class ImpactScreen extends StatefulWidget {
