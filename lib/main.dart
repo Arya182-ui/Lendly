@@ -7,10 +7,8 @@ import 'providers/user_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme_notifier.dart';
 import 'theme/app_theme.dart';
-import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
-import 'screens/auth/forgot_password_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/home/add_item_screen.dart';
 import 'screens/home/search_screen.dart';
@@ -18,8 +16,7 @@ import 'screens/groups/groups_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/chat/messages_screen.dart';
 import 'screens/auth/welcome_screen.dart';
-import 'widgets/bottom_nav.dart';
-import 'screens/notifications/notifications_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/impact/impact_screen.dart';
 import 'screens/requests_screen.dart';
 import 'services/session_service.dart';
@@ -27,6 +24,7 @@ import 'services/app_initializer.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/api_client.dart';
 import 'services/app_logger.dart';
+
 import 'services/connectivity_service.dart';
 import 'config/env_config.dart';
 
@@ -91,7 +89,7 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/messages': (context) => MessagesScreen(),
         '/groups': (context) => GroupsScreen(),
-        '/notifications': (context) => NotificationsScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
         '/add-item': (context) => const AddItemScreen(),
         '/requests': (context) => const RequestsScreen(),
       },
@@ -201,7 +199,7 @@ class _AppRootState extends State<AppRoot> {
     const HomeScreen(),
     const SearchScreen(),
     const SizedBox.shrink(), // Placeholder for plus button
-    NotificationsScreen(),
+    const NotificationsScreen(),
     ProfileScreen(),
     ImpactScreen(), // Only import from impact/impact_screen.dart
   ];

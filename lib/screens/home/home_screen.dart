@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
 import 'dart:async';
 import 'item_detail_screen.dart';
 import 'search_screen.dart';
@@ -19,9 +21,8 @@ import '../impact/impact_screen.dart';
 import '../wallet/wallet_screen.dart';
 import '../profile/profile_screen.dart';
 import '../chat/messages_screen.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_shadows.dart';
 import '../../widgets/trust_score_widgets.dart';
+import '../../widgets/completion_widgets.dart';
 import '../../services/coins_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -317,6 +318,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// Build avatar widget (handles SVG, assets, and network images)
   Widget _buildAvatarWidget(String? avatarPath, String fallbackText) {
+    // Add cache key to force refresh when avatar changes
+    final cacheKey = avatarPath != null ? '${avatarPath}_${DateTime.now().millisecondsSinceEpoch ~/ 1000}' : 'default';
+    
     if (avatarPath == null || avatarPath.isEmpty) {
       return CircleAvatar(
         backgroundColor: Colors.white,
@@ -538,6 +542,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               // Custom App Bar with Greeting
               _buildCustomAppBar(),
               
+              // Profile Completion Banner (if applicable)
+              SliverToBoxAdapter(child: ProfileCompletionBanner()),
+              
               // Search Bar
               SliverToBoxAdapter(child: _buildSearchBar()),
               
@@ -708,7 +715,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ],
                               ),
                             ),
-                            child: _buildAvatarWidget(userAvatar, userName ?? 'U'),
+                            child: Consumer<UserProvider>(
+                              builder: (context, userProvider, child) {
+                                // Use provider avatar if available, fallback to local userAvatar
+                                final avatarToShow = userProvider.avatar ?? userAvatar;
+                                return _buildAvatarWidget(avatarToShow, userName ?? 'U');
+                              },
+                            ),
                           ),
                         ),
                       ),

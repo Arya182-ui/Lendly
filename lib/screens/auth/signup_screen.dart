@@ -88,7 +88,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  errorText: _error,
                 ),
               ),
               const SizedBox(height: 18),
@@ -132,6 +131,19 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 32),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               SizedBox(
                 width: double.infinity,
                 child: _loading
@@ -203,41 +215,49 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     try {
       final firebaseAuth = FirebaseAuthService();
       final user = await firebaseAuth.signUp(email, password);
-      
+
       if (user?.user != null) {
         final uid = user!.user!.uid;
-        
-        // Create basic user profile in backend
+        bool profileCreated = false;
         try {
           await SimpleApiClient.post(
             '/auth/complete-onboarding',
             body: {
               'uid': uid,
-              'displayName': email.split('@')[0], // Use email prefix as default name
+              'displayName': email.split('@')[0],
               'email': email,
               'avatarChoice': 'default',
             },
-            requiresAuth: false, // Newly signed up user may not have token yet
+            requiresAuth: false,
           );
+          profileCreated = true;
         } catch (e) {
+          debugPrint('Profile creation failed: $e');
+          // Delete Firebase user if profile creation fails
+          try {
+            await user.user!.delete();
+          } catch (deleteError) {
+            debugPrint('Failed to delete Firebase user after profile creation failure: $deleteError');
+          }
+          throw Exception('Profile creation failed. Server might be down. Your account was not created.');
         }
-        
-        setState(() { _loading = false; });
-        if (!mounted) return;
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully! Please login.'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        
-        Navigator.pop(context);
+
+        if (profileCreated) {
+          setState(() { _loading = false; });
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully! Please login.'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       String errorMessage = 'Registration failed. Please try again.';
-      
+
       // Handle Firebase Auth exceptions with user-friendly messages
       if (e.toString().contains('email-already-in-use')) {
         errorMessage = 'An account already exists with this email address.';
@@ -252,10 +272,10 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
       } else if (e.toString().contains('network-request-failed')) {
         errorMessage = 'Network error. Please check your internet connection.';
       }
-      
-      setState(() { 
-        _loading = false; 
-        _error = errorMessage; 
+
+      setState(() {
+        _loading = false;
+        _error = errorMessage;
       });
     }
   }

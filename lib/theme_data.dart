@@ -31,12 +31,12 @@ final ThemeData lightTheme = ThemeData(
     iconTheme: const IconThemeData(color: AppColors.textPrimaryLight),
     surfaceTintColor: Colors.transparent,
   ),
-  cardTheme: CardTheme(
+  cardTheme: CardThemeData(
     color: AppColors.cardLight,
     elevation: 0,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
-      side: BorderSide(color: AppColors.borderLight.withOpacity(0.5)),
+      side: BorderSide(color: AppColors.borderLight.withValues(alpha: 0.5)),
     ),
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
@@ -177,12 +177,12 @@ final ThemeData darkTheme = ThemeData(
     iconTheme: const IconThemeData(color: AppColors.textPrimaryDark),
     surfaceTintColor: Colors.transparent,
   ),
-  cardTheme: CardTheme(
+  cardTheme: CardThemeData(
     color: AppColors.cardDark,
     elevation: 0,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
-      side: BorderSide(color: AppColors.borderDark.withOpacity(0.5)),
+      side: BorderSide(color: AppColors.borderDark.withValues(alpha: 0.5)),
     ),
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(

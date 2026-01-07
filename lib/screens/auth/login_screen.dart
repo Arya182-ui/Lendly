@@ -100,7 +100,20 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: const Text('Forgot Password?'),
                 ),
               ),
-              const SizedBox(height: 32),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: _loading

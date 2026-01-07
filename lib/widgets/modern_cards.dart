@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'app_colors.dart';
-import 'app_shadows.dart';
-import 'app_text_styles.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_shadows.dart';
+import '../theme/app_text_styles.dart';
 
 /// Modern Card Designs for Lendly
 class ModernCard extends StatelessWidget {

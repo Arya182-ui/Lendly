@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/image_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Enhanced image widgets for consistent image display throughout the app
 class AppImage extends StatelessWidget {
@@ -24,14 +24,25 @@ class AppImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget imageWidget = CachedNetworkImage(
-      imageUrl: imageUrl,
-      width: width,
-      height: height,
-      fit: fit,
-      placeholder: placeholder,
-      errorWidget: errorWidget,
-    );
+    Widget imageWidget;
+    
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      imageWidget = errorWidget ?? AppImagePlaceholders.profilePlaceholder(size: width ?? height ?? 50);
+    } else {
+      imageWidget = Image.network(
+        imageUrl!,
+        width: width,
+        height: height,
+        fit: fit,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return placeholder ?? AppImagePlaceholders.loading(size: width ?? height);
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return errorWidget ?? AppImagePlaceholders.profilePlaceholder(size: width ?? height);
+        },
+      );
+    }
 
     if (borderRadius != null) {
       imageWidget = ClipRRect(
@@ -91,9 +102,9 @@ class AppImagePlaceholders {
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.18), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1.5),
               ),
             ),
           ),
@@ -173,27 +184,54 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget avatar;
+    // Add timestamp to force cache invalidation
+    final cacheKey = avatarUrl != null ? '${avatarUrl}_${DateTime.now().millisecondsSinceEpoch ~/ 1000}' : 'default';
 
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
       if (avatarUrl!.startsWith('assets/')) {
-        // SVG avatar
-        avatar = Container(
-          width: radius * 2,
-          height: radius * 2,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.grey[100],
-          ),
-          padding: const EdgeInsets.all(4),
-          child: ClipOval(
-            child: Image.asset(
-              avatarUrl!,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  AppImagePlaceholders.profilePlaceholder(size: radius * 2),
+        // Handle SVG avatars properly
+        if (avatarUrl!.endsWith('.svg')) {
+          avatar = Container(
+            width: radius * 2,
+            height: radius * 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey[100],
             ),
-          ),
-        );
+            padding: const EdgeInsets.all(4),
+            child: ClipOval(
+              child: SvgPicture.asset(
+                avatarUrl!,
+                key: ValueKey(cacheKey),
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                placeholderBuilder: (context) =>
+                    AppImagePlaceholders.profilePlaceholder(size: radius * 2),
+              ),
+            ),
+          );
+        } else {
+          // Regular asset image
+          avatar = Container(
+            width: radius * 2,
+            height: radius * 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey[100],
+            ),
+            padding: const EdgeInsets.all(4),
+            child: ClipOval(
+              child: Image.asset(
+                avatarUrl!,
+                key: ValueKey(cacheKey),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    AppImagePlaceholders.profilePlaceholder(size: radius * 2),
+              ),
+            ),
+          );
+        }
       } else if (avatarUrl!.startsWith('http')) {
         // Network image
         avatar = AppImage(

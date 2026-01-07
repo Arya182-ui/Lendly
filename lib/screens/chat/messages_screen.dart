@@ -6,6 +6,7 @@ import 'package:lendly/widgets/app_image.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'chat_screen.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../../services/api_client.dart';
 
 import '../../config/env_config.dart';
@@ -93,6 +94,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
 			       final userProvider = Provider.of<UserProvider>(context, listen: false);
 			       currentUid = userProvider.uid ?? '';
 			       _loadData();
+			       // Set up periodic refresh for groups (every 30 seconds)
+			       Timer.periodic(const Duration(seconds: 30), (timer) {
+				       if (mounted) {
+					       _refreshGroups();
+				       } else {
+					       timer.cancel();
+				       }
+			       });
 							 ChatSocketService().onReceiveMessage((data) {
 											 final String peerUid = data['from'] == currentUid ? data['to'] : data['from'];
 											 final List<String> roomIdList = [currentUid, peerUid]..sort();
@@ -139,36 +148,43 @@ class _MessagesScreenState extends State<MessagesScreen> {
 		       return;
 	       }
 	       
-	       // Load groups
-	       final groups = await fetchGroups(currentUid);
+	       // Load both groups and friends concurrently for better performance
+	       final Future<List<Map<String, dynamic>>> groupsFuture = fetchGroups(currentUid);
+	       final Future<List<Map<String, dynamic>>> friendsFuture = fetchFriends(currentUid);
+	       
+	       // Wait for both to complete
+	       final results = await Future.wait([groupsFuture, friendsFuture]);
+	       final groups = results[0];
+	       final friends = results[1];
+	       
 	       setState(() {
+	         // Update groups
 	         myGroups = groups;
 	         isLoadingGroups = false;
+	         
+	         // Clear and rebuild conversations
+	         conversationsMap.clear();
+	         // Add friends as conversations
+	         for (final friend in friends) {
+		         final List<String> roomIdList = [currentUid, friend['uid']]..sort();
+		         final String roomKey = roomIdList.join('_');
+		         conversationsMap[roomKey] = {
+			         'avatar': friend['avatar'],
+			         'name': friend['name'],
+			         'context': 'Direct Chat',
+			         'lastMessage': '',
+			         'unread': false,
+			         'urgent': false,
+			         'timestamp': '',
+			         'peerUid': friend['uid'],
+		         };
+	         }
+	         isLoadingChats = false;
+	         isLoading = false;
 	       });
 	       
-	       // Load friends/chats
-	       final friends = await fetchFriends(currentUid);
-	       
-	       setState(() {
-		       conversationsMap.clear(); // Clear existing data
-		       // Add friends as conversations
-		       for (final friend in friends) {
-			       final List<String> roomIdList = [currentUid, friend['uid']]..sort();
-			       final String roomKey = roomIdList.join('_');
-			       conversationsMap[roomKey] = {
-				       'avatar': friend['avatar'],
-				       'name': friend['name'],
-				       'context': 'Direct Chat',
-				       'lastMessage': '',
-				       'unread': false,
-				       'urgent': false,
-				       'timestamp': '',
-				       'peerUid': friend['uid'],
-			       };
-		       }
-		       isLoadingChats = false;
-		       isLoading = false;
-	       });
+	       // Force a rebuild to ensure UI updates
+	       setState(() {});
        } catch (e) {
 	       setState(() { 
 	         isLoading = false;
@@ -246,47 +262,51 @@ class _MessagesScreenState extends State<MessagesScreen> {
 					const SizedBox(width: 8),
 				],
 			),
-			body: Column(
-				children: [
-					// Search bar
-					Padding(
-						padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-						child: Container(
-							decoration: BoxDecoration(
-								color: Colors.white,
-								borderRadius: BorderRadius.circular(16),
-								border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-								boxShadow: [
-									BoxShadow(
-										color: Colors.black.withValues(alpha: 0.04),
-										blurRadius: 10,
-										offset: const Offset(0, 4),
-									),
-								],
-							),
-							child: TextField(
-								onChanged: (val) => setState(() => search = val),
-								decoration: InputDecoration(
-									hintText: 'Search conversations...',
-									hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-									border: InputBorder.none,
-									prefixIcon: Padding(
-										padding: const EdgeInsets.all(12),
-										child: Container(
-											padding: const EdgeInsets.all(8),
-											decoration: BoxDecoration(
-												color: const Color(0xFF1DBF73).withValues(alpha: 0.1),
-												borderRadius: BorderRadius.circular(10),
-											),
-											child: const Icon(Icons.search_rounded, color: Color(0xFF1DBF73), size: 18),
+			body: RefreshIndicator(
+				onRefresh: _loadData,
+				color: const Color(0xFF1DBF73),
+				backgroundColor: Colors.white,
+				child: Column(
+					children: [
+						// Search bar
+						Padding(
+							padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+							child: Container(
+								decoration: BoxDecoration(
+									color: Colors.white,
+									borderRadius: BorderRadius.circular(16),
+									border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+									boxShadow: [
+										BoxShadow(
+											color: Colors.black.withValues(alpha: 0.04),
+											blurRadius: 10,
+											offset: const Offset(0, 4),
 										),
-									),
-									contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+									],
 								),
-								style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B)),
+								child: TextField(
+									onChanged: (val) => setState(() => search = val),
+									decoration: InputDecoration(
+										hintText: 'Search conversations...',
+										hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+										border: InputBorder.none,
+										prefixIcon: Padding(
+											padding: const EdgeInsets.all(12),
+											child: Container(
+												padding: const EdgeInsets.all(8),
+												decoration: BoxDecoration(
+													color: const Color(0xFF1DBF73).withValues(alpha: 0.1),
+													borderRadius: BorderRadius.circular(10),
+												),
+												child: const Icon(Icons.search_rounded, color: Color(0xFF1DBF73), size: 18),
+											),
+										),
+										contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+									),
+									style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B)),
+								),
 							),
 						),
-					),
 					       Expanded(
 						       child: isLoading
 							       ? Center(
@@ -634,7 +654,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 								},
 							),
 					),
-				],
+					],
+				),
 			),
 		);
 	}
@@ -663,6 +684,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
 		final list = data['groups'] ?? data;
 		if (list is List) return list.cast<Map<String, dynamic>>();
 		throw Exception('Failed to fetch groups');
+	}
+	
+	// Helper method to refresh only groups without full reload
+	Future<void> _refreshGroups() async {
+		try {
+			final groups = await fetchGroups(currentUid);
+			setState(() {
+				myGroups = groups;
+			});
+		} catch (e) {
+			// Silently fail for background refresh
+			print('Background group refresh failed: $e');
+		}
 	}
 
 	Future<List<Map<String, dynamic>>> fetchLatestChats(String uid) async {

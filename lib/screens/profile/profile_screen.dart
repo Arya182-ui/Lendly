@@ -141,8 +141,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   List<Map<String, dynamic>> lends = [];
   List<Map<String, dynamic>> reviews = [];
 
-// ...existing code...
-
   @override
   void initState() {
     super.initState();
@@ -531,19 +529,33 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.grey[200],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(6.0),
-            child: (avatar != null && avatar is String && avatar.isNotEmpty && AvatarOptions.avatarOptions.contains(avatar))
-                ? SvgPicture.asset(avatar, fit: BoxFit.contain)
-                : SvgPicture.asset(AvatarOptions.avatarOptions[0], fit: BoxFit.contain),
-          ),
+        Consumer<UserProvider>(
+          builder: (context, userProvider, child) {
+            final currentAvatar = userProvider.avatar ?? avatar;
+            return Container(
+              key: ValueKey('profile_avatar_${currentAvatar}_${DateTime.now().millisecondsSinceEpoch}'),
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey[200],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(6.0),
+                child: (currentAvatar != null && currentAvatar is String && currentAvatar.isNotEmpty && AvatarOptions.avatarOptions.contains(currentAvatar))
+                    ? SvgPicture.asset(
+                        currentAvatar, 
+                        key: ValueKey('${currentAvatar}_${DateTime.now().millisecondsSinceEpoch}'), 
+                        fit: BoxFit.contain
+                      )
+                    : SvgPicture.asset(
+                        AvatarOptions.avatarOptions[0], 
+                        key: ValueKey('default_avatar_${DateTime.now().millisecondsSinceEpoch}'), 
+                        fit: BoxFit.contain
+                      ),
+              ),
+            );
+          },
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -756,14 +768,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               final newCollege = result['college'] ?? college;
               final newAvatar = result['avatar'] ?? avatar;
               
-              // Update UI immediately
-              setState(() {
-                name = newName;
-                college = newCollege;
-                avatar = newAvatar;
-              });
-              
-              // Persist to backend
+              // Persist to backend first
               try {
                 await SimpleApiClient.put(
                   '/user/profile',
@@ -776,7 +781,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   requiresAuth: true,
                 );
                 
-                // Update UserProvider so changes reflect across app
+                // Update UserProvider first
                 if (mounted) {
                   final userProvider = Provider.of<UserProvider>(context, listen: false);
                   userProvider.setProfile(
@@ -784,10 +789,26 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     newCollege: newCollege,
                     newAvatar: newAvatar,
                   );
+                  // Force user provider to refresh
+                  userProvider.notifyListeners();
                 }
                 
-                // Refresh profile to ensure consistency
-                await _fetchProfile();
+                // Update UI immediately after successful API call
+                setState(() {
+                  name = newName;
+                  college = newCollege;
+                  avatar = newAvatar;
+                });
+                
+                // Force rebuild by calling setState again to ensure avatar widget updates
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) {
+                    setState(() {});
+                    // Also trigger global rebuild for all Consumer widgets
+                    final userProvider = Provider.of<UserProvider>(context, listen: false);
+                    userProvider.notifyListeners();
+                  }
+                });
                 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -800,8 +821,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     SnackBar(content: Text('Failed to update profile: ${e.toString()}'), backgroundColor: Colors.red),
                   );
                 }
-                // Revert changes on error
-                await _fetchProfile();
               }
             }
           },

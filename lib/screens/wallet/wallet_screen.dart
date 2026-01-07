@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/wallet_service.dart';
+import '../../services/api_client.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_shadows.dart';
@@ -22,6 +23,7 @@ class _WalletScreenState extends State<WalletScreen> with TickerProviderStateMix
   String selectedPeriod = '30d';
   Map<String, dynamic>? stats;
   late TabController _tabController;
+  num balance = 0;
 
   final List<String> filterOptions = [
     'all',
@@ -952,9 +954,10 @@ class _WalletScreenState extends State<WalletScreen> with TickerProviderStateMix
               ),
             ),
             const SizedBox(height: 20),
-            _buildEarnItem('💰', 'Complete transactions', '+10 pts', AppColors.success),
+            _buildEarnItem('💰', 'Complete transactions', '+10-50 pts', AppColors.success),
             _buildEarnItem('✅', 'Verify your student status', '+25 pts', AppColors.info),
-            _buildEarnItem('👥', 'Refer friends', '+50 pts', AppColors.secondary),
+            _buildEarnItem('👥', 'Refer friends', '+75 pts', AppColors.secondary),
+            _buildEarnItem('🔥', 'Daily login streak', '+5-25 pts', AppColors.accentOrange),
             _buildEarnItem('🎉', 'Welcome bonus', '+100 pts', AppColors.accentOrange),
             const SizedBox(height: 16),
           ],
@@ -1035,12 +1038,56 @@ class _WalletScreenState extends State<WalletScreen> with TickerProviderStateMix
               ),
             ),
             const SizedBox(height: 20),
-            _buildEarnItem('📝', 'List new items', '-5 pts', AppColors.accentOrange),
-            _buildEarnItem('⭐', 'Premium features', 'Coming Soon', AppColors.secondary),
-            _buildEarnItem('🎁', 'Special rewards', 'Coming Soon', AppColors.accentPink),
+            _buildEarnItem('📝', 'List new items', '-10 pts', AppColors.accentOrange),
+            _buildEarnItem('⭐', 'Boost listing visibility', '-50 pts', AppColors.secondary),
+            _buildEarnItem('🎁', 'Premium features', '-200 pts', AppColors.accentPink),
             const SizedBox(height: 16),
           ],
         ),
+      ),
+    );
+  }
+  
+  Future<void> _collectWelcomeBonus() async {
+    try {
+      final uid = await SessionService.getUid();
+      if (uid == null) return;
+      
+      final response = await SimpleApiClient.post(
+        '/wallet/collect-welcome-bonus',
+        body: {'uid': uid},
+        requiresAuth: true,
+      );
+      
+      if (response['success'] == true) {
+        setState(() {
+          balance = response['newBalance'] ?? balance;
+        });
+        
+        _showSuccessMessage('Welcome bonus collected! +100 coins');
+        _loadWalletData(); // Refresh data
+      }
+    } catch (e) {
+      _showErrorMessage('Welcome bonus already collected or error occurred');
+    }
+  }
+
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
