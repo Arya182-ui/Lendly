@@ -9,6 +9,7 @@ import 'dart:convert';
 import '../../config/env_config.dart';
 import '../../services/item_service.dart';
 import '../../services/session_service.dart';
+import '../../services/firebase_auth_service.dart';
 import 'edit_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
@@ -145,9 +146,15 @@ class ItemDetailScreen extends StatelessWidget {
     String? duration,
     double? proposedPrice,
   }) async {
+    final token = await FirebaseAuthService().getIdToken();
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
     final response = await http.post(
       Uri.parse('${EnvConfig.apiBaseUrl}/transactions/request'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
         'requesterId': requesterId,
         'itemOwnerId': itemOwnerId,

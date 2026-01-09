@@ -239,6 +239,7 @@ class EnhancedNotificationService extends ChangeNotifier {
         headers['Authorization'] = 'Bearer $token';
       }
     } catch (e) {
+      debugPrint('Error getting auth token for headers: $e');
     }
     
     return headers;
@@ -343,7 +344,7 @@ class EnhancedNotificationService extends ChangeNotifier {
     try {
       final response = await http.delete(
         Uri.parse('${ApiConfig.baseUrl}/user/notifications/clear-all'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(const Duration(seconds: 30));
 
@@ -392,6 +393,7 @@ class EnhancedNotificationService extends ChangeNotifier {
         }
       }
     } catch (e) {
+      debugPrint('Error loading notification categories: $e');
     }
   }
 

@@ -7,6 +7,7 @@ import '../impact/impact_screen.dart';
 import '../friends_screen.dart';
 import '../auth/id_upload_screen.dart';
 import '../settings/settings_screen.dart';
+import '../home/edit_item_screen.dart';
 import '../../services/verification_service.dart';
 import '../../services/firebase_auth_service.dart';
 import '../../providers/user_provider.dart';
@@ -97,15 +98,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit),
-                            onPressed: () {
-                              // TODO: Implement edit functionality
-                            },
+                            onPressed: () => _editItem(item),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete),
-                            onPressed: () async {
-                              // TODO: Implement delete functionality
-                            },
+                            onPressed: () => _deleteItem(item),
                           ),
                         ],
                       ),
@@ -119,6 +116,68 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   List<dynamic> myItems = [];
   final ItemService _itemService = ItemService(EnvConfig.apiBaseUrl);
   int friendsCount = 0;
+
+  /// Navigate to edit item screen
+  void _editItem(Map<String, dynamic> item) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditItemScreen(item: item),
+      ),
+    );
+    if (result == true) {
+      _fetchProfile(); // Refresh items after edit
+    }
+  }
+
+  /// Delete item with confirmation dialog
+  Future<void> _deleteItem(Map<String, dynamic> item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Item'),
+        content: Text('Are you sure you want to delete "${item['name'] ?? item['title'] ?? 'this item'}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _itemService.deleteItem(
+          id: item['id'] ?? '',
+          ownerId: uid ?? '',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Item deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _fetchProfile(); // Refresh items after delete
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete item: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
   late TabController _tabController;
   bool isBioExpanded = false;
   bool isLoading = false;

@@ -36,6 +36,14 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _type = widget.item['type'] ?? 'borrow';
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickImage() async {
     try {
       final file = await ImageService.showImagePickerDialog(context);

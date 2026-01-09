@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'dart:async';
 import '../config/env_config.dart';
+import 'firebase_auth_service.dart';
 
 /// Service for student ID verification
 class VerificationService {
@@ -10,6 +11,21 @@ class VerificationService {
   static const _timeout = Duration(seconds: 30); // Longer for file uploads
   static const _maxFileSize = 5 * 1024 * 1024; // 5MB
   static const _allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+  static final FirebaseAuthService _authService = FirebaseAuthService();
+
+  /// Get auth headers
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    try {
+      final token = await _authService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Continue without auth token
+    }
+    return headers;
+  }
 
   /// Upload student ID for verification
   static Future<Map<String, dynamic>> uploadStudentId({
@@ -36,10 +52,15 @@ class VerificationService {
     }
 
     try {
+      final token = await _authService.getIdToken();
       var uri = Uri.parse('$baseUrl/auth/verify-student');
       var request = http.MultipartRequest('POST', uri)
         ..fields['uid'] = uid
         ..files.add(await http.MultipartFile.fromPath('file', file.path));
+      
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       
       var streamedResponse = await request.send().timeout(_timeout);
       var response = await http.Response.fromStream(streamedResponse);
@@ -84,7 +105,7 @@ class VerificationService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/user/$uid/verification-status'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(_timeout);
 
       if (response.statusCode == 200) {

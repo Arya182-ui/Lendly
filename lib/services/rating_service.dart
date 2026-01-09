@@ -1,10 +1,26 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/env_config.dart';
+import 'firebase_auth_service.dart';
 
 class RatingService {
   static String get baseUrl => EnvConfig.apiBaseUrl;
   static const Duration timeout = Duration(seconds: 10);
+  static final FirebaseAuthService _authService = FirebaseAuthService();
+
+  /// Get auth headers
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    try {
+      final token = await _authService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Continue without auth token
+    }
+    return headers;
+  }
 
   /// Submit a rating for a user
   static Future<Map<String, dynamic>> submitRating({
@@ -24,7 +40,7 @@ class RatingService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/user/submit-rating'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: jsonEncode({
           'fromUid': fromUid,
           'toUid': toUid,
@@ -53,7 +69,7 @@ class RatingService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/user/ratings?uid=$uid&limit=$limit'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(timeout);
       
       if (response.statusCode == 200) {
@@ -75,7 +91,7 @@ class RatingService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/user/public-profile?uid=$uid'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(timeout);
       
       if (response.statusCode == 200) {

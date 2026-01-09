@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/issue_report_service.dart';
+import '../../services/session_service.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({Key? key}) : super(key: key);
@@ -139,11 +141,41 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       _error = null;
       _success = null;
     });
-    // TODO: Replace with actual API call
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() {
-      _loading = false;
-      _success = 'Issue reported successfully!';
-    });
+
+    try {
+      final uid = await SessionService.getUid();
+      if (uid == null || uid.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error = 'You must be logged in to submit an issue report.';
+        });
+        return;
+      }
+
+      final result = await IssueReportService.submitIssue(
+        uid: uid,
+        email: _emailController.text.trim(),
+        message: _messageController.text.trim(),
+      );
+
+      if (result['success'] == true) {
+        setState(() {
+          _loading = false;
+          _success = 'Issue reported successfully! We will get back to you soon.';
+          _emailController.clear();
+          _messageController.clear();
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _error = result['error'] ?? 'Failed to submit issue. Please try again.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'An error occurred. Please try again later.';
+      });
+    }
   }
 }

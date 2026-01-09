@@ -212,6 +212,29 @@ class FriendshipService extends ChangeNotifier {
     }
   }
 
+  /// Get blocked users list
+  Future<List<Map<String, dynamic>>> getBlockedUsers(String uid) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('UID must be provided');
+    }
+    
+    try {
+      final data = await SimpleApiClient.get(
+        '/user/blocked-users',
+        queryParams: {'uid': uid},
+        requiresAuth: true,
+      );
+      
+      if (data['success'] == true && data['blockedUsers'] != null) {
+        return List<Map<String, dynamic>>.from(data['blockedUsers']);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Failed to get blocked users: $e');
+      return [];
+    }
+  }
+
   /// Get friends list with enhanced data
   Future<Map<String, dynamic>> getFriendsAndRequests(String uid) async {
     if (uid.isEmpty) {

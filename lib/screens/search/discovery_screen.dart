@@ -23,13 +23,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
   bool _loading = true;
   String? _error;
 
-  // Categories with icons
+  // Categories with icons - using lowercase values matching backend
   final List<Map<String, dynamic>> _categories = [
-    {'name': 'Books', 'icon': Icons.menu_book, 'color': Colors.blue},
-    {'name': 'Tech', 'icon': Icons.laptop, 'color': Colors.purple},
-    {'name': 'Sports', 'icon': Icons.sports_soccer, 'color': Colors.orange},
-    {'name': 'Tools', 'icon': Icons.build, 'color': Colors.brown},
-    {'name': 'Other', 'icon': Icons.category, 'color': Colors.grey},
+    {'name': 'Books', 'value': 'books', 'icon': Icons.menu_book, 'color': Colors.blue},
+    {'name': 'Electronics', 'value': 'electronics', 'icon': Icons.laptop, 'color': Colors.purple},
+    {'name': 'Sports', 'value': 'sports', 'icon': Icons.sports_soccer, 'color': Colors.orange},
+    {'name': 'Tools', 'value': 'tools', 'icon': Icons.build, 'color': Colors.brown},
+    {'name': 'Clothing', 'value': 'clothing', 'icon': Icons.checkroom, 'color': Colors.pink},
+    {'name': 'Furniture', 'value': 'furniture', 'icon': Icons.chair, 'color': Colors.teal},
+    {'name': 'Other', 'value': 'other', 'icon': Icons.category, 'color': Colors.grey},
   ];
 
   @override

@@ -3,16 +3,32 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config/env_config.dart';
+import 'firebase_auth_service.dart';
 
 /// Service for submitting issue reports
 class IssueReportService {
   static String get baseUrl => EnvConfig.apiBaseUrl;
   static const _timeout = Duration(seconds: 12);
   static const _maxMessageLength = 5000;
+  static final FirebaseAuthService _authService = FirebaseAuthService();
 
   /// Validate email format
   static bool _isValidEmail(String email) {
     return RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$').hasMatch(email);
+  }
+
+  /// Get auth headers
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    try {
+      final token = await _authService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Continue without auth token
+    }
+    return headers;
   }
 
   /// Submit an issue report
@@ -38,7 +54,7 @@ class IssueReportService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/report-issue'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: jsonEncode({
           'uid': uid,
           'email': email.trim(),

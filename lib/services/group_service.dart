@@ -75,7 +75,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/groups/$groupId/join'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(_timeout);
 
@@ -99,7 +99,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/groups/$groupId/leave'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(_timeout);
 
@@ -177,11 +177,11 @@ class GroupService extends ChangeNotifier {
   }
 
   /// Get trending groups
-  static Future<List<Map<String, dynamic>>> getTrendingGroups() async {
+  Future<List<Map<String, dynamic>>> getTrendingGroups() async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/groups/trending'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -200,11 +200,11 @@ class GroupService extends ChangeNotifier {
   }
 
   /// Get group suggestions
-  static Future<List<Map<String, dynamic>>> getGroupSuggestions(String uid) async {
+  Future<List<Map<String, dynamic>>> getGroupSuggestions(String uid) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/groups/suggestions?uid=$uid'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -269,7 +269,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/groups'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode(groupData),
       ).timeout(_timeout);
 
@@ -300,7 +300,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/groups/$groupId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode(groupData),
       ).timeout(_timeout);
 
@@ -325,7 +325,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/groups/$groupId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(_timeout);
 
@@ -350,7 +350,7 @@ class GroupService extends ChangeNotifier {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/groups/$groupId/members'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
       ).timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -414,9 +414,10 @@ class GroupService extends ChangeNotifier {
   /// Join group with cache update
   static Future<bool> joinGroupStatic(String groupId, String uid) async {
     try {
+      final service = GroupService();
       final response = await http.post(
         Uri.parse('$baseUrl/groups/$groupId/join'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await service._getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(_timeout);
 
@@ -433,9 +434,10 @@ class GroupService extends ChangeNotifier {
   /// Leave group with cache update
   static Future<bool> leaveGroupStatic(String groupId, String uid) async {
     try {
+      final service = GroupService();
       final response = await http.post(
         Uri.parse('$baseUrl/groups/$groupId/leave'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await service._getAuthHeaders(),
         body: json.encode({'uid': uid}),
       ).timeout(_timeout);
 

@@ -19,12 +19,33 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _priceController = TextEditingController();
-  String _category = 'Books';
+  String _category = 'books';
   String _type = 'borrow';
   bool _loading = false;
   String? _error;
   File? _selectedImage;
   final ItemService _service = ItemService(EnvConfig.apiBaseUrl);
+
+  String _formatCategory(String category) {
+    switch (category) {
+      case 'books': return 'Books';
+      case 'electronics': return 'Electronics';
+      case 'sports': return 'Sports';
+      case 'tools': return 'Tools';
+      case 'clothing': return 'Clothing';
+      case 'furniture': return 'Furniture';
+      case 'other': return 'Other';
+      default: return category[0].toUpperCase() + category.substring(1);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -219,10 +240,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _category,
-                items: ['Books', 'Tech', 'Sports', 'Tools', 'Other']
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                items: ['books', 'electronics', 'sports', 'tools', 'clothing', 'furniture', 'other']
+                    .map((c) => DropdownMenuItem(value: c, child: Text(_formatCategory(c))))
                     .toList(),
-                onChanged: (v) => setState(() => _category = v ?? 'Books'),
+                onChanged: (v) => setState(() => _category = v ?? 'books'),
                 decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 16),
