@@ -28,8 +28,16 @@ class _AdvancedSearchScreenState extends State<AdvancedSearchScreen> {
   String _sortBy = 'newest'; // newest, oldest, price_low, price_high, distance
   bool _availableOnly = true;
   
-  // Filter options
-  final List<String> _categories = ['Books', 'Tech', 'Sports', 'Tools', 'Other'];
+  // Filter options - using lowercase values matching backend
+  final List<Map<String, String>> _categories = [
+    {'value': 'books', 'label': 'Books'},
+    {'value': 'electronics', 'label': 'Electronics'},
+    {'value': 'sports', 'label': 'Sports'},
+    {'value': 'tools', 'label': 'Tools'},
+    {'value': 'clothing', 'label': 'Clothing'},
+    {'value': 'furniture', 'label': 'Furniture'},
+    {'value': 'other', 'label': 'Other'},
+  ];
   final List<String> _types = ['lend', 'sell', 'borrow'];
   final List<String> _conditions = ['new', 'like_new', 'good', 'fair'];
   final List<Map<String, String>> _sortOptions = [
@@ -39,6 +47,14 @@ class _AdvancedSearchScreenState extends State<AdvancedSearchScreen> {
     {'value': 'price_high', 'label': 'Price: High to Low'},
     {'value': 'distance', 'label': 'Distance'},
   ];
+
+  String _getCategoryLabel(String value) {
+    final category = _categories.firstWhere(
+      (c) => c['value'] == value,
+      orElse: () => {'value': value, 'label': value},
+    );
+    return category['label'] ?? value;
+  }
 
   @override
   void initState() {
@@ -247,17 +263,17 @@ class _AdvancedSearchScreenState extends State<AdvancedSearchScreen> {
       spacing: 8,
       runSpacing: 8,
       children: _categories.map((category) => FilterChip(
-        label: Text(category),
-        selected: _selectedCategory == category,
+        label: Text(category['label']!),
+        selected: _selectedCategory == category['value'],
         onSelected: (selected) {
           setState(() {
-            _selectedCategory = selected ? category : null;
+            _selectedCategory = selected ? category['value'] : null;
           });
         },
         selectedColor: const Color(0xFF1DBF73),
         backgroundColor: Colors.grey[100],
         labelStyle: TextStyle(
-          color: _selectedCategory == category ? Colors.white : Colors.black87,
+          color: _selectedCategory == category['value'] ? Colors.white : Colors.black87,
         ),
       )).toList(),
     );
@@ -623,7 +639,7 @@ class _AdvancedSearchScreenState extends State<AdvancedSearchScreen> {
                       children: [
                         if (_selectedCategory != null)
                           Chip(
-                            label: Text(_selectedCategory!),
+                            label: Text(_getCategoryLabel(_selectedCategory!)),
                             onDeleted: () {
                               setState(() {
                                 _selectedCategory = null;

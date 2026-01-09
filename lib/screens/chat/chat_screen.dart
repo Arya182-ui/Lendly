@@ -270,6 +270,7 @@ class _EnhancedChatScreenState extends State<EnhancedChatScreen>
       });
 
     } catch (e) {
+      debugPrint('Error setting up socket listeners: $e');
     }
   }
 

@@ -92,6 +92,8 @@ class AppLogger {
       _initialized = true;
       info('Logger initialized', tag: 'AppLogger');
     } catch (e) {
+      // Logger init failure - can only print to console
+      print('AppLogger initialization failed: $e');
     }
   }
 
@@ -276,6 +278,7 @@ class AppLogger {
       final logsJson = _logBuffer.take(200).map((e) => e.toJson()).toList();
       await prefs.setString('crash_logs', jsonEncode(logsJson));
     } catch (e) {
+      // Silently fail - don't want log persistence to crash app
     }
   }
 
@@ -290,6 +293,7 @@ class AppLogger {
         return list.map((e) => _logEntryFromJson(e)).toList();
       }
     } catch (e) {
+      // Silently fail - don't want log retrieval to crash app
     }
     return null;
   }

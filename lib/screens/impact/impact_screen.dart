@@ -216,22 +216,22 @@ class _ImpactScreenState extends State<ImpactScreen> with SingleTickerProviderSt
         children: [
           if (Navigator.canPop(context))
             IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.blue, size: 20),
               onPressed: () => Navigator.of(context).pop(),
             ),
           const SizedBox(width: 8),
-          const Icon(Icons.eco, color: Colors.white, size: 28),
+          const Icon(Icons.eco, color: Colors.blue, size: 28),
           const SizedBox(width: 12),
           Text(
             'Your Impact',
             style: theme.textTheme.titleLarge?.copyWith(
-              color: Colors.white,
+              color: Colors.blue,
               fontWeight: FontWeight.bold,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: Colors.blue),
             onPressed: () => _loadData(forceRefresh: true),
             tooltip: 'Refresh',
           ),
@@ -835,10 +835,10 @@ class _ImpactScreenState extends State<ImpactScreen> with SingleTickerProviderSt
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Wrap(
-            spacing: 16,
-            runSpacing: 16,
+            spacing: 40,
+            runSpacing: 26,
             children: badges.map((b) {
               return _BadgeWidget(
                 icon: iconFromString(b['icon'] as String? ?? 'verified'),

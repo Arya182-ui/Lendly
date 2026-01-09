@@ -8,6 +8,7 @@ import 'package:lendly/widgets/avatar_options.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme_notifier.dart';
 import '../../services/session_service.dart';
+import '../../services/friendship_service.dart';
 import '../admin/admin_panel_screen.dart';
 import '../info/terms_screen.dart';
 import '../info/privacy_policy_screen.dart';
@@ -467,69 +468,163 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class BlockedUsersScreen extends StatelessWidget {
+class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({Key? key}) : super(key: key);
 
   @override
+  State<BlockedUsersScreen> createState() => _BlockedUsersScreenState();
+}
+
+class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
+  List<Map<String, dynamic>> _blockedUsers = [];
+  bool _loading = true;
+  String? _error;
+  final FriendshipService _friendshipService = FriendshipService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBlockedUsers();
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    
+    try {
+      final uid = await SessionService.getUid();
+      if (uid == null) {
+        setState(() {
+          _error = 'Please log in to view blocked users';
+          _loading = false;
+        });
+        return;
+      }
+      
+      final blockedUsers = await _friendshipService.getBlockedUsers(uid);
+      setState(() {
+        _blockedUsers = blockedUsers;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load blocked users';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _unblockUser(String blockedUid, String userName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unblock User'),
+        content: Text('Are you sure you want to unblock $userName?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Unblock'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true) return;
+    
+    try {
+      final uid = await SessionService.getUid();
+      if (uid == null) return;
+      
+      await _friendshipService.unblockUser(uid, blockedUid);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$userName unblocked'), backgroundColor: Colors.green),
+      );
+      
+      _loadBlockedUsers(); // Refresh list
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to unblock user'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Mock: empty blocked list
-    final blockedUsers = <Map<String, String>>[];
     return Scaffold(
       appBar: AppBar(
         title: const Text('Blocked Users'),
         backgroundColor: Colors.green[700],
       ),
-      body: blockedUsers.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.block, color: Colors.grey[400], size: 64),
-                  const SizedBox(height: 12),
-                  const Text('No blocked users yet.', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: blockedUsers.length,
-              itemBuilder: (context, i) {
-                final user = blockedUsers[i];
-                final avatar = user['avatar'];
-                Widget avatarWidget;
-                if (avatar != null && AvatarOptions.avatarOptions.contains(avatar)) {
-                  avatarWidget = Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey[200],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: SvgPicture.asset(
-                        (avatar != null && avatar is String && avatar.isNotEmpty && AvatarOptions.avatarOptions.contains(avatar))
-                            ? avatar
-                            : AvatarOptions.avatarOptions[0],
-                        fit: BoxFit.contain,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[300], size: 64),
+                      const SizedBox(height: 12),
+                      Text(_error!, style: const TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(onPressed: _loadBlockedUsers, child: const Text('Retry')),
+                    ],
+                  ),
+                )
+              : _blockedUsers.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.block, color: Colors.grey[400], size: 64),
+                          const SizedBox(height: 12),
+                          const Text('No blocked users yet.', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadBlockedUsers,
+                      child: ListView.builder(
+                        itemCount: _blockedUsers.length,
+                        itemBuilder: (context, i) {
+                          final user = _blockedUsers[i];
+                          final avatar = user['avatar'] as String?;
+                          Widget avatarWidget;
+                          if (avatar != null && AvatarOptions.avatarOptions.contains(avatar)) {
+                            avatarWidget = Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.grey[200],
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: SvgPicture.asset(avatar, fit: BoxFit.contain),
+                              ),
+                            );
+                          } else {
+                            avatarWidget = CircleAvatar(
+                              backgroundColor: Colors.green[700],
+                              child: const Icon(Icons.person, color: Colors.white),
+                            );
+                          }
+                          return ListTile(
+                            leading: avatarWidget,
+                            title: Text(user['name'] ?? 'Unknown'),
+                            subtitle: user['college'] != null ? Text(user['college']) : null,
+                            trailing: TextButton(
+                              onPressed: () => _unblockUser(user['uid'], user['name'] ?? 'this user'),
+                              child: const Text('Unblock', style: TextStyle(color: Colors.green)),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                } else {
-                  avatarWidget = CircleAvatar(
-                    backgroundColor: Colors.green[700],
-                    child: const Icon(Icons.person, color: Colors.white),
-                  );
-                }
-                return ListTile(
-                  leading: avatarWidget,
-                  title: Text(user['name']!),
-                  trailing: TextButton(
-                    onPressed: () {},
-                    child: const Text('Unblock'),
-                  ),
-                );
-              },
-            ),
     );
   }
 }

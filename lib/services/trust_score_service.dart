@@ -24,8 +24,6 @@ class TrustScoreService {
         },
       );
 
-      print('[TRUST_SCORE] Response: ${response.statusCode} ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
@@ -34,14 +32,12 @@ class TrustScoreService {
           'history': data['history'] ?? [],
         };
       } else {
-        print('[TRUST_SCORE] Error: ${response.body}');
         return {
           'success': false,
           'error': 'Failed to fetch trust score'
         };
       }
     } catch (e) {
-      print('[TRUST_SCORE] Exception: $e');
       return {
         'success': false,
         'error': e.toString()

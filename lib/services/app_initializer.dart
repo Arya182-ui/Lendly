@@ -133,6 +133,7 @@ class AppInitializer {
       
       logger.info('App disposed successfully', tag: 'AppInitializer');
     } catch (e) {
+      debugPrint('Error during app disposal: $e');
     }
   }
 

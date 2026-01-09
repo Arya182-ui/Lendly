@@ -114,6 +114,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _fadeController.forward();
     } catch (e) {
       setState(() => isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Request timed out. Please try again.')),
+        );
+      }
     }
   }
 
@@ -133,6 +138,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await _loadNearbyItems();
       }
     } catch (e) {
+      // Location permission check failed - continue without location features
+      debugPrint('Location permission error: $e');
     }
   }
 
@@ -161,6 +168,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         userCollege = 'Invertis University';
         trustScore = 50;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load user data.')),
+        );
+      }
     }
   }
   
@@ -173,6 +185,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     } catch (e) {
+      // Coin balance load failed - use default value
+      debugPrint('Failed to load coin balance: $e');
     }
   }
 
@@ -190,6 +204,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         activeGroups = results[1];
       });
     } catch (e) {
+      debugPrint('Failed to load home data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load home data.')),
+        );
+      }
     }
   }
 
@@ -199,6 +219,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final data = await impactService.getPersonalImpact(uid!);
       setState(() => impactData = data);
     } catch (e) {
+      debugPrint('Failed to load impact data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load impact data.')),
+        );
+      }
     }
   }
 
@@ -208,6 +234,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final chats = await chatService.getChatList(uid!, limit: 5);
       setState(() => recentChats = chats);
     } catch (e) {
+      debugPrint('Failed to load recent chats: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load recent chats.')),
+        );
+      }
     }
   }
 
@@ -272,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       
       setState(() => itemsNearYou = nearbyData);
     } catch (e) {
+      debugPrint('Failed to load nearby items: $e');
     }
   }
 
@@ -2224,7 +2257,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     child: const Icon(Icons.people_rounded, color: Color(0xFF6366F1), size: 18),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   const Text(
                     'Active Groups',
                     style: TextStyle(
@@ -2249,7 +2282,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         SizedBox(
-          height: 90,
+          height: 70,
+          width: double.infinity,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2373,7 +2407,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         } else {
           timeAgo = '${(diff.inDays / 7).floor()}w';
         }
-      } catch (_) {}
+      } catch (_) {
+        // Date parsing failed - show empty time, not critical
+      }
     }
     
     return GestureDetector(

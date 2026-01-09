@@ -27,12 +27,12 @@ class EnvConfig {
   // API Configuration
   static String get apiBaseUrl => 
     dotenv.env['API_BASE_URL'] ?? 
-    const String.fromEnvironment('API_BASE_URL', defaultValue: 'https://lendly-backend.vercel.app/api');
+    const String.fromEnvironment('API_BASE_URL', defaultValue: 'https://ary-lendly-production.up.railway.app');
   
   // Socket.IO Configuration  
   static String get socketUrl => 
     dotenv.env['SOCKET_URL'] ?? 
-    const String.fromEnvironment('SOCKET_URL', defaultValue: 'https://lendly-backend.vercel.app');
+    const String.fromEnvironment('SOCKET_URL', defaultValue: 'https://ary-lendly-production.up.railway.app');
   
   // Feature Flags
   static bool get enableAnalytics => 

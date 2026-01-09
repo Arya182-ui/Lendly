@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import 'firebase_auth_service.dart';
 
 // Reward models
 class Reward {
@@ -196,6 +197,8 @@ class RewardService extends ChangeNotifier {
   static const String _rewardsCacheKey = 'rewards_cache';
   static const String _achievementsCacheKey = 'achievements_cache';
   static const Duration _cacheValidityDuration = Duration(hours: 1);
+  
+  final FirebaseAuthService _authService = FirebaseAuthService();
 
   List<Reward> _rewards = [];
   List<Achievement> _achievements = [];
@@ -204,6 +207,20 @@ class RewardService extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Timer? _refreshTimer;
+
+  /// Get auth headers
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    try {
+      final token = await _authService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Continue without auth token
+    }
+    return headers;
+  }
 
   // Getters
   List<Reward> get rewards => List.unmodifiable(_rewards);
@@ -239,7 +256,7 @@ class RewardService extends ChangeNotifier {
 
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/user/rewards?uid=$uid');
-      final response = await http.get(url);
+      final response = await http.get(url, headers: await _getAuthHeaders());
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -275,7 +292,7 @@ class RewardService extends ChangeNotifier {
       final url = Uri.parse('${ApiConfig.baseUrl}/user/rewards/claim');
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getAuthHeaders(),
         body: json.encode({
           'uid': uid,
           'rewardId': rewardId,
@@ -306,7 +323,7 @@ class RewardService extends ChangeNotifier {
       final url = Uri.parse(
         '${ApiConfig.baseUrl}/user/leaderboard?type=$typeParam&limit=$limit'
       );
-      final response = await http.get(url);
+      final response = await http.get(url, headers: await _getAuthHeaders());
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

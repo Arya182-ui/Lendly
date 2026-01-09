@@ -273,6 +273,57 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
       }
     }
 
+    Future<void> _handleBlockUser() async {
+      if (myUid == null) return;
+      
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Block User'),
+          content: Text('Are you sure you want to block ${profile?['name'] ?? 'this user'}? They won\'t be able to contact you or see your profile.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Block'),
+            ),
+          ],
+        ),
+      );
+      
+      if (result != true) return;
+      
+      setState(() { isFriendshipLoading = true; });
+      
+      try {
+        await _friendshipService.blockUser(myUid!, widget.uid);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User blocked successfully'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          Navigator.pop(context); // Go back after blocking
+        }
+      } catch (e) {
+        setState(() { isFriendshipLoading = false; });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to block user: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
     Future<void> _handleChat() async {
       if (profile == null) return;
       
@@ -782,6 +833,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
             case 'remove':
               _handleRemoveFriend();
               break;
+            case 'block':
+              _handleBlockUser();
+              break;
           }
         },
         itemBuilder: (context) => [
@@ -802,6 +856,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                 Icon(Icons.person_remove, size: 18, color: Colors.red),
                 SizedBox(width: 8),
                 Text('Remove Friend', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'block',
+            child: Row(
+              children: [
+                Icon(Icons.block, size: 18, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Block User', style: TextStyle(color: Colors.red)),
               ],
             ),
           ),
@@ -1485,9 +1549,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
   }
 
   void _showAllItems() {
-    // TODO: Navigate to user's items screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('View all items feature coming soon!')),
+    // Navigate to full-screen view of user's items
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserItemsScreen(
+          userId: widget.uid,
+          userName: profile?['name'] ?? 'User',
+          items: userItems,
+        ),
+      ),
     );
   }
 
@@ -1608,6 +1679,211 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
           ),
         );
       }
+    }
+  }
+}
+
+/// Screen to display all items from a user
+class UserItemsScreen extends StatelessWidget {
+  final String userId;
+  final String userName;
+  final List<Map<String, dynamic>> items;
+
+  const UserItemsScreen({
+    Key? key,
+    required this.userId,
+    required this.userName,
+    required this.items,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('$userName\'s Items'),
+        elevation: 0,
+      ),
+      body: items.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No items listed yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/item-detail',
+                        arguments: item,
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          // Item Image
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: item['image'] != null && item['image'].toString().isNotEmpty
+                                ? Image.network(
+                                    item['image'],
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 80,
+                                      height: 80,
+                                      color: Colors.grey[200],
+                                      child: Icon(Icons.image, color: Colors.grey[400]),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                    child: Icon(
+                                      _getCategoryIcon(item['category']),
+                                      color: Colors.grey[400],
+                                      size: 32,
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Item Details
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['name'] ?? 'Untitled',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item['description'] ?? '',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getTypeColor(item['type']).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        (item['type'] ?? 'lend').toString().toUpperCase(),
+                                        style: TextStyle(
+                                          color: _getTypeColor(item['type']),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (item['price'] != null && item['price'] > 0)
+                                      Text(
+                                        '₹${item['price']}',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            color: Colors.grey[400],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  IconData _getCategoryIcon(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'books':
+        return Icons.menu_book_rounded;
+      case 'electronics':
+        return Icons.devices_rounded;
+      case 'sports':
+        return Icons.sports_soccer_rounded;
+      case 'tools':
+        return Icons.build_rounded;
+      case 'gaming':
+        return Icons.sports_esports_rounded;
+      case 'music':
+        return Icons.music_note_rounded;
+      case 'clothing':
+        return Icons.checkroom_rounded;
+      case 'furniture':
+        return Icons.chair_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
+
+  Color _getTypeColor(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'lend':
+        return Colors.green;
+      case 'sell':
+        return Colors.blue;
+      case 'borrow':
+        return Colors.orange;
+      default:
+        return Colors.grey;
     }
   }
 }

@@ -24,8 +24,6 @@ class CoinsService {
         },
       );
 
-      print('[COINS] Wallet Response: ${response.statusCode} ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
@@ -35,14 +33,12 @@ class CoinsService {
           'spendingOptions': data['spendingOptions'] ?? {},
         };
       } else {
-        print('[COINS] Error: ${response.body}');
         return {
           'success': false,
           'error': 'Failed to fetch wallet'
         };
       }
     } catch (e) {
-      print('[COINS] Exception: $e');
       return {
         'success': false,
         'error': e.toString()
@@ -67,8 +63,6 @@ class CoinsService {
         },
       );
 
-      print('[COINS] History Response: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
@@ -76,14 +70,12 @@ class CoinsService {
           'transactions': data['transactions'] ?? [],
         };
       } else {
-        print('[COINS] Error: ${response.body}');
         return {
           'success': false,
           'error': 'Failed to fetch transaction history'
         };
       }
     } catch (e) {
-      print('[COINS] Exception: $e');
       return {
         'success': false,
         'error': e.toString()
@@ -101,7 +93,6 @@ class CoinsService {
       }
       return false;
     } catch (e) {
-      print('[COINS] Error checking balance: $e');
       return false;
     }
   }
