@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import 'dart:async';
+import 'dart:io';
 import 'item_detail_screen.dart';
 import 'search_screen.dart';
 import 'add_item_screen.dart';
@@ -15,6 +16,7 @@ import '../../services/challenges_service.dart';
 import '../../services/activities_service.dart';
 import '../../config/api_config.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../services/app_logger.dart';
 import '../notifications/notifications_screen.dart';
 import '../groups/groups_screen.dart';
 import '../impact/impact_screen.dart';
@@ -98,90 +100,161 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// **OPTIMIZED** - Load all data in a single API call
   /// Reduces 6-8 separate API calls to just 1 consolidated request
   Future<void> _initData() async {
+    final stopwatch = Stopwatch()..start();
     try {
-      uid = await SessionService.getUserId();
+      debugPrint('HomeScreen: Starting _initData...');
       
-      if (uid != null) {
-        // Check location permission first (non-blocking)
-        await _checkLocationPermission();
-        
-        // Get location if available for nearby items
-        double? latitude;
-        double? longitude;
-        if (hasLocationPermission) {
-          try {
-            Position position = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-            ).timeout(const Duration(seconds: 5));
-            latitude = position.latitude;
-            longitude = position.longitude;
-          } catch (e) {
-            debugPrint('Location fetch failed, continuing without it: $e');
-          }
-        }
-        
-        // **SINGLE API CALL** - Replaces multiple separate calls
-        await _loadAllHomeData(latitude: latitude, longitude: longitude);
-      }
-      
-      setState(() => isLoading = false);
-      _fadeController.forward();
+      // Add timeout to the entire operation
+      await _initDataWithTimeout().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('HomeScreen: _initData timed out after 10 seconds');
+          throw TimeoutException('Data loading timed out', const Duration(seconds: 10));
+        },
+      );
     } catch (e) {
-      setState(() => isLoading = false);
+      debugPrint('HomeScreen: Exception in _initData: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Request timed out. Please try again.')),
         );
       }
+    } finally {
+      debugPrint('HomeScreen: Setting isLoading = false');
+      if (mounted) {
+        setState(() => isLoading = false);
+        _fadeController.forward();
+      }
+      stopwatch.stop();
+      logger.logPerformance('Total home screen load', stopwatch.elapsed);
+    }
+  }
+
+  Future<void> _initDataWithTimeout() async {
+    debugPrint('HomeScreen: Calling SessionService.getUserId()...');
+    uid = await SessionService.getUserId();
+    debugPrint('HomeScreen: Got uid = ' + (uid?.toString() ?? 'null'));
+    
+    if (uid != null) {
+      // Check location permission first (non-blocking)
+      debugPrint('HomeScreen: Checking location permission...');
+      final locationWatch = Stopwatch()..start();
+      await _checkLocationPermission();
+      locationWatch.stop();
+      logger.logPerformance('Location permission + fetch', locationWatch.elapsed);
+      
+      // Get location if available for nearby items
+      double? latitude;
+      double? longitude;
+      if (hasLocationPermission) {
+        try {
+          debugPrint('HomeScreen: Getting GPS location...');
+          final gpsWatch = Stopwatch()..start();
+          Position position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+          ).timeout(const Duration(seconds: 5));
+          gpsWatch.stop();
+          logger.logPerformance('GPS fetch', gpsWatch.elapsed);
+          latitude = position.latitude;
+          longitude = position.longitude;
+          debugPrint('HomeScreen: Got location: $latitude, $longitude');
+        } catch (e) {
+          debugPrint('HomeScreen: Location fetch failed, continuing without it: $e');
+        }
+      } else {
+        debugPrint('HomeScreen: No location permission, skipping GPS');
+      }
+      
+      // **SINGLE API CALL** - Replaces multiple separate calls
+      debugPrint('HomeScreen: Starting API call...');
+      final apiWatch = Stopwatch()..start();
+      try {
+        await _loadAllHomeData(latitude: latitude, longitude: longitude);
+        debugPrint('HomeScreen: API call completed successfully');
+      } catch (e) {
+        debugPrint('HomeScreen: Exception in _loadAllHomeData: $e');
+        rethrow; // Let the timeout handler catch this
+      }
+      apiWatch.stop();
+      logger.logPerformance('Home API call', apiWatch.elapsed);
+    } else {
+      debugPrint('HomeScreen: uid is null, not loading home data.');
     }
   }
   
   /// Load all home screen data in a single optimized API call
   Future<void> _loadAllHomeData({double? latitude, double? longitude}) async {
+    debugPrint('HomeScreen: _loadAllHomeData called with uid=$uid, lat=$latitude, lon=$longitude');
+    
     try {
       final homeService = HomeService(ApiConfig.baseUrl);
+      debugPrint('HomeScreen: Created HomeService, calling getAllHomeData...');
+      
+      // Add timeout to the API call itself
       final data = await homeService.getAllHomeData(
         uid: uid!,
         latitude: latitude,
         longitude: longitude,
+      ).timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          debugPrint('HomeScreen: getAllHomeData timed out after 8 seconds');
+          throw TimeoutException('API call timed out', const Duration(seconds: 8));
+        },
       );
+      
+      debugPrint('HomeScreen: getAllHomeData completed, data keys: ${data.keys.toList()}');
+      debugPrint('HomeScreen: Data summary - user: ${data['user'] != null}, wallet: ${data['wallet'] != null}, lists: ${data.length}');
+      
+      // Defensive: log if data is null or missing keys
+      if (data.isEmpty) {
+        debugPrint('HomeScreen: getAllHomeData returned empty data!');
+        return;
+      }
       
       // Extract user data
       final user = data['user'] as Map<String, dynamic>? ?? {};
       final wallet = data['wallet'] as Map<String, dynamic>? ?? {};
       final impact = data['impact'] as Map<String, dynamic>? ?? {};
       
-      setState(() {
-        // User info
-        userName = user['first_name'] ?? user['name'] ?? 'Student';
-        userCollege = user['college'] ?? 'Invertis University';
-        userAvatar = user['avatar_url'] ?? user['avatar'];
-        trustScore = (user['trustScore'] ?? 50).toInt();
-        verificationStatus = user['verification_status'] ?? 'pending';
-        notifications = user['notifications'] ?? 0;
-        
-        // Wallet
-        coinBalance = wallet['balance'] ?? 0;
-        
-        // Impact
-        impactData = impact;
-        
-        // Lists
-        newArrivals = (data['newArrivals'] as List<dynamic>?) ?? [];
-        itemsNearYou = (data['nearbyItems'] as List<dynamic>?) ?? [];
-        activeGroups = (data['groups'] as List<dynamic>?) ?? [];
-        recentChats = (data['recentChats'] as List<dynamic>?) ?? [];
-        
-        // Gamification
-        dailyChallenge = data['dailyChallenge'] as Map<String, dynamic>?;
-        campusActivities = (data['campusActivities'] as List<dynamic>?) ?? [];
-        loadingChallenge = false;
-        loadingActivities = false;
-      });
+      debugPrint('HomeScreen: Extracted data - user: ${user.keys.toList()}, wallet: ${wallet.keys.toList()}');
+      
+      if (mounted) {
+        setState(() {
+          // User info
+          userName = user['first_name'] ?? user['name'] ?? 'Student';
+          userCollege = user['college'] ?? 'Invertis University';
+          userAvatar = user['avatar_url'] ?? user['avatar'];
+          trustScore = (user['trustScore'] ?? 50).toInt();
+          verificationStatus = user['verification_status'] ?? 'pending';
+          notifications = user['notifications'] ?? 0;
+          // Wallet
+          coinBalance = wallet['balance'] ?? 0;
+          // Impact
+          impactData = impact;
+          // Lists
+          newArrivals = (data['newArrivals'] as List<dynamic>?) ?? [];
+          itemsNearYou = (data['nearbyItems'] as List<dynamic>?) ?? [];
+          activeGroups = (data['groups'] as List<dynamic>?) ?? [];
+          recentChats = (data['recentChats'] as List<dynamic>?) ?? [];
+          // Gamification
+          dailyChallenge = data['dailyChallenge'] as Map<String, dynamic>?;
+          campusActivities = (data['campusActivities'] as List<dynamic>?) ?? [];
+          loadingChallenge = false;
+          loadingActivities = false;
+        });
+        debugPrint('HomeScreen: State updated successfully');
+      }
     } catch (e) {
-      debugPrint('Failed to load consolidated home data: $e');
+      debugPrint('HomeScreen: Failed to load consolidated home data: $e');
       // Fallback to individual calls if consolidated fails
-      await _loadDataFallback();
+      try {
+        debugPrint('HomeScreen: Attempting fallback...');
+        await _loadDataFallback();
+        debugPrint('HomeScreen: Fallback completed');
+      } catch (fallbackError) {
+        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+      }
     }
   }
   
@@ -201,22 +274,53 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _checkLocationPermission() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('HomeScreen: Checking location permission with timeout...');
+      
+      // Add timeout to location permission check
+      LocationPermission permission = await Geolocator.checkPermission().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('HomeScreen: Location permission check timed out, assuming denied');
+          return LocationPermission.denied;
+        },
+      );
+      
+      debugPrint('HomeScreen: Initial permission: $permission');
       
       if (permission == LocationPermission.denied && !_locationPermissionAsked) {
         _locationPermissionAsked = true;
-        permission = await Geolocator.requestPermission();
+        debugPrint('HomeScreen: Requesting location permission...');
+        
+        // Add timeout to permission request
+        permission = await Geolocator.requestPermission().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint('HomeScreen: Location permission request timed out, assuming denied');
+            return LocationPermission.denied;
+          },
+        );
+        
+        debugPrint('HomeScreen: Permission after request: $permission');
       }
       
       hasLocationPermission = permission == LocationPermission.always || 
                              permission == LocationPermission.whileInUse;
       
+      debugPrint('HomeScreen: hasLocationPermission = $hasLocationPermission');
+      
       if (hasLocationPermission) {
-        await _loadNearbyItems();
+        debugPrint('HomeScreen: Loading nearby items...');
+        await _loadNearbyItems().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            debugPrint('HomeScreen: _loadNearbyItems timed out');
+          },
+        );
       }
     } catch (e) {
       // Location permission check failed - continue without location features
-      debugPrint('Location permission error: $e');
+      debugPrint('HomeScreen: Location permission error: $e');
+      hasLocationPermission = false;
     }
   }
 
@@ -631,6 +735,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   color: const Color(0xFF1DBF73),
                   strokeWidth: 3.5,
                   backgroundColor: const Color(0xFFE2E8F0),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Error or empty state handling
+    final bool isAllDataEmpty =
+        (newArrivals == null || newArrivals!.isEmpty) &&
+        (itemsNearYou == null || itemsNearYou!.isEmpty) &&
+        (activeGroups == null || activeGroups!.isEmpty) &&
+        (recentChats == null || recentChats!.isEmpty) &&
+        (campusActivities == null || campusActivities!.isEmpty);
+
+    if (isAllDataEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_empty, size: 64, color: Color(0xFF1DBF73)),
+              const SizedBox(height: 24),
+              const Text(
+                'Nothing to show yet!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No data found. Try refreshing or check back later.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _refreshData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1DBF73),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
