@@ -108,7 +108,7 @@ class LendlyItemCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (subtitle != null) ..[
+                if (subtitle != null) ...[
                   AppSpacing.vGapXs,
                   Text(
                     subtitle!,
@@ -119,7 +119,7 @@ class LendlyItemCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (actions != null) ..[
+                if (actions != null) ...[
                   AppSpacing.vGapSm,
                   Row(
                     children: actions!,
@@ -128,7 +128,7 @@ class LendlyItemCard extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) ..[
+          if (trailing != null) ...[
             AppSpacing.hGapSm,
             trailing!,
           ],

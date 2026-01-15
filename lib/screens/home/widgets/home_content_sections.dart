@@ -4,9 +4,8 @@ import '../../../theme/app_spacing.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/lendly_cards.dart';
 import '../../../widgets/lendly_buttons.dart';
-import '../../../widgets/error_handler.dart';
 import '../item_detail_screen.dart';
-import '../../groups/group_detail_screen.dart';
+import '../../groups/groups_screen.dart';
 
 /// Home Content Sections - Recent items, groups, activities
 class HomeContentSections extends StatelessWidget {
@@ -176,23 +175,52 @@ class HomeContentSections extends StatelessWidget {
   }
 
   Widget _buildGroupTile(dynamic group) {
-    return LendlyItemCard(
-      title: group['name'] ?? 'Unknown Group',
-      subtitle: '${group['memberCount'] ?? 0} members • ${group['type'] ?? 'Group'}',
-      trailing: Icon(
-        Icons.arrow_forward_ios,
-        size: 16,
-        color: AppColors.textTertiaryLight,
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.group_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  group['name'] ?? 'Unknown Group',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${group['memberCount'] ?? 0} members',
+                  style: TextStyle(color: AppColors.textSecondaryLight, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textTertiaryLight),
+        ],
       ),
     );
   }
 
   void _navigateToItemDetail(BuildContext context, dynamic item) {
-    if (item['id'] != null) {
+    if (item != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ItemDetailScreen(itemId: item['id']),
+          builder: (_) => ItemDetailScreen(item: item is Map<String, dynamic> ? item : {'id': item['id'], 'name': item['name']}),
         ),
       );
     }
@@ -203,7 +231,7 @@ class HomeContentSections extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => GroupDetailScreen(groupId: group['id']),
+          builder: (_) => const GroupsScreen(), // Navigate to groups screen
         ),
       );
     }

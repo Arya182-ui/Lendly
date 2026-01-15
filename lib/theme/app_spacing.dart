@@ -11,6 +11,19 @@ class AppSpacing {
   static const double xl = 32.0;  // Major sections, screen margins
   static const double xxl = 48.0; // Hero sections, major breaks
   
+  // Legacy alias properties for compatibility
+  static const EdgeInsets paddingMd = EdgeInsets.all(md);
+  static const EdgeInsets paddingLg = EdgeInsets.all(lg);
+  static const Widget verticalXs = SizedBox(height: xs);
+  static const Widget verticalSm = SizedBox(height: sm);
+  static const Widget verticalMd = SizedBox(height: md);
+  static const Widget verticalLg = SizedBox(height: lg);
+  static const Widget verticalXl = SizedBox(height: xl);
+  static const Widget horizontalXs = SizedBox(width: xs);
+  static const Widget horizontalSm = SizedBox(width: sm);
+  static const Widget horizontalMd = SizedBox(width: md);
+  static const Widget horizontalLg = SizedBox(width: lg);
+  
   // Common Edge Insets
   static const EdgeInsets screenPadding = EdgeInsets.all(md);
   static const EdgeInsets cardPadding = EdgeInsets.all(md);

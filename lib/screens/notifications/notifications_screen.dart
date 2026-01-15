@@ -249,148 +249,328 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1a237e)),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text('Notifications', style: TextStyle(color: Color(0xFF1a237e), fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Color(0xFF1a237e)),
-            onSelected: (value) {
-              switch (value) {
-                case 'mark_all_read':
-                  _markAllAsRead();
-                  break;
-                case 'clear_all':
-                  _clearAllNotifications();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'mark_all_read',
-                child: Text('Mark all as read'),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            expandedHeight: 120,
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            leading: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_rounded,
+                color: innerBoxIsScrolled ? const Color(0xFF1E293B) : const Color(0xFF1DBF73),
               ),
-              const PopupMenuItem(
-                value: 'clear_all',
-                child: Text('Clear all', style: TextStyle(color: Colors.red)),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            title: innerBoxIsScrolled
+                ? const Text(
+                    'Notifications',
+                    style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+                  )
+                : null,
+            actions: [
+              PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert,
+                  color: innerBoxIsScrolled ? const Color(0xFF1E293B) : const Color(0xFF1DBF73),
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'mark_all_read':
+                      _markAllAsRead();
+                      break;
+                    case 'clear_all':
+                      _clearAllNotifications();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'mark_all_read',
+                    child: Text('Mark all as read'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'clear_all',
+                    child: Text('Clear all', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                color: Colors.white,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1DBF73).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_rounded,
+                                color: Color(0xFF1DBF73),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Notifications',
+                                  style: TextStyle(
+                                    color: Color(0xFF1E293B),
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                Text(
+                                  '${notifications.where((n) => !(n['read'] ?? false)).length} unread',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+        body: RefreshIndicator(
+          onRefresh: _loadNotifications,
+          color: const Color(0xFF1DBF73),
+          child: Column(
+            children: [
+              // Category chips - Enhanced
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: categories.map((cat) {
+                    final isSelected = selectedCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => setState(() => selectedCategory = cat),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? const LinearGradient(
+                                    colors: [Color(0xFF1DBF73), Color(0xFF10B981)],
+                                  )
+                                : null,
+                            color: isSelected ? null : Colors.grey[100],
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF1DBF73).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.grey[700],
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                notifications.isEmpty ? Icons.notifications_off_outlined : Icons.filter_alt_off_rounded,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              notifications.isEmpty
+                                  ? 'No notifications yet'
+                                  : 'No ${selectedCategory.toLowerCase()} notifications',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              notifications.isEmpty
+                                  ? 'When you have notifications, they\'ll appear here'
+                                  : 'Try selecting a different category',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, idx) {
+                          final n = filtered[idx];
+                          final isUnread = !(n['read'] ?? false);
+                          final type = _getTypeFromNotification(n);
+                          
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: isUnread ? Colors.white : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: isUnread
+                                  ? Border.all(
+                                      color: const Color(0xFF1DBF73).withOpacity(0.3),
+                                      width: 1.5,
+                                    )
+                                  : null,
+                              boxShadow: isUnread
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(0xFF1DBF73).withOpacity(0.08),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: isUnread ? () => _markAsRead(n['id']) : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: type == 'system'
+                                              ? Colors.amber.withOpacity(0.1)
+                                              : type == 'group'
+                                                  ? Colors.purple.withOpacity(0.1)
+                                                  : const Color(0xFF1DBF73).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                        child: Icon(
+                                          type == 'request'
+                                              ? Icons.shopping_bag_rounded
+                                              : type == 'group'
+                                                  ? Icons.groups_rounded
+                                                  : type == 'system'
+                                                      ? Icons.settings_rounded
+                                                      : Icons.notifications_rounded,
+                                          color: type == 'system'
+                                              ? Colors.amber[800]
+                                              : type == 'group'
+                                                  ? Colors.purple
+                                                  : const Color(0xFF1DBF73),
+                                          size: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    n['title'] ?? 'Notification',
+                                                    style: TextStyle(
+                                                      fontWeight: isUnread ? FontWeight.w700 : FontWeight.w600,
+                                                      fontSize: 15,
+                                                      color: const Color(0xFF1E293B),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (isUnread)
+                                                  Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration: const BoxDecoration(
+                                                      color: Color(0xFF1DBF73),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              n['message'] ?? 'No message',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: isUnread ? const Color(0xFF475569) : Colors.grey[500],
+                                                height: 1.3,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              _formatTimestamp(n['createdAt']),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[400],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadNotifications,
-        child: Column(
-          children: [
-            // Category chips
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: categories.map((cat) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(cat),
-                    selected: selectedCategory == cat,
-                    onSelected: (_) => setState(() => selectedCategory = cat),
-                    selectedColor: const Color(0xFF1DBF73),
-                    backgroundColor: const Color(0xFFF5F5F5),
-                    labelStyle: TextStyle(color: selectedCategory == cat ? Colors.white : const Color(0xFF1a237e)),
-                  ),
-                )).toList(),
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            notifications.isEmpty ? Icons.notifications_none : Icons.filter_alt_off,
-                            size: 80,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            notifications.isEmpty
-                                ? 'No notifications yet'
-                                : 'No ${selectedCategory.toLowerCase()} notifications',
-                            style: const TextStyle(fontSize: 18, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            notifications.isEmpty
-                                ? 'When you have notifications, they\'ll appear here'
-                                : 'Try selecting a different category',
-                            style: const TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final n = filtered[idx];
-                        final isUnread = !(n['read'] ?? false);
-                        final type = _getTypeFromNotification(n);
-                        
-                        return Card(
-                          elevation: isUnread ? 2 : 0,
-                          color: isUnread ? Colors.white : const Color(0xFFF5F5F5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: isUnread ? const BorderSide(color: Color(0xFF1DBF73), width: 1.2) : BorderSide.none,
-                          ),
-                          child: ListTile(
-                            onTap: isUnread ? () => _markAsRead(n['id']) : null,
-                            leading: Icon(
-                              type == 'request'
-                                  ? Icons.shopping_bag
-                                  : type == 'group'
-                                      ? Icons.groups
-                                      : type == 'system'
-                                          ? Icons.settings
-                                          : Icons.notifications,
-                              color: type == 'system'
-                                  ? Colors.amber[800]
-                                  : type == 'group'
-                                      ? Colors.purple
-                                      : const Color(0xFF1a237e),
-                              size: 32,
-                            ),
-                            title: Text(
-                              n['title'] ?? 'Notification',
-                              style: TextStyle(
-                                fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                                color: const Color(0xFF1a237e),
-                              ),
-                            ),
-                            subtitle: Text(
-                              n['message'] ?? 'No message',
-                              style: TextStyle(
-                                color: isUnread ? Colors.black : Colors.black54,
-                              ),
-                            ),
-                            trailing: Text(
-                              _formatTimestamp(n['createdAt']),
-                              style: const TextStyle(fontSize: 12, color: Colors.black45),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
         ),
       ),
     );

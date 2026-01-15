@@ -6,7 +6,7 @@ import 'providers/user_provider.dart';
 import 'theme_notifier.dart';
 import 'theme/app_theme.dart';
 import 'services/session_service.dart';
-import 'services/app_initializer.dart';
+import 'services/app_initializer.dart' as app_init;
 import 'services/firebase_auth_service.dart';
 import 'services/api_client.dart';
 import 'services/app_logger.dart';
@@ -43,7 +43,7 @@ void main() async {
     await Future.wait([
       FirebaseAuthService().initialize(),
       ApiClient().initialize(),
-      AppInitializer.initialize(),
+      app_init.AppInitializer.initialize(),
     ]);
     
     logger.info('App initialization completed successfully', tag: 'Main');

@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
 
 /// Lendly App Typography System
 class AppTextStyles {
   static const String fontFamily = 'Inter';
+  
+  // Alias styles for legacy code compatibility
+  static const TextStyle heading = headlineMedium;
+  static const TextStyle subheading = titleMedium;
+  static const TextStyle body = bodyMedium;
+  static const TextStyle button = buttonMedium;
+  static const TextStyle hero = displayMedium;
   
   // Display Styles
   static const TextStyle displayLarge = TextStyle(

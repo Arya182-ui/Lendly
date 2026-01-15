@@ -41,6 +41,7 @@ class AppColors {
   static const Color textPrimaryLight = Color(0xFF0F172A);
   static const Color textSecondaryLight = Color(0xFF475569);
   static const Color textTertiaryLight = Color(0xFF94A3B8);
+  static const Color textMutedLight = Color(0xFF94A3B8); // Alias for tertiary
   static const Color textDisabledLight = Color(0xFFCBD5E1);
   
   // Neutral Colors - Dark Mode

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../config/app_colors.dart';
 import '../services/api_client.dart';
 import '../services/session_service.dart';
+import '../screens/profile/profile_screen.dart';
 
 class ProfileCompletionBanner extends StatefulWidget {
   const ProfileCompletionBanner({Key? key}) : super(key: key);
@@ -183,7 +184,11 @@ class _ProfileCompletionBannerState extends State<ProfileCompletionBanner> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/profile-edit');
+                    // Navigate to Profile screen which handles editing
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

@@ -81,12 +81,12 @@ class HomeHeader extends StatelessWidget {
                             fontSize: 20,
                           ),
                         ),
-                        if (userCollege.isNotEmpty) ..[
+                        if (userCollege.isNotEmpty) ...[
                           AppSpacing.vGapXs,
                           Text(
                             userCollege,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],

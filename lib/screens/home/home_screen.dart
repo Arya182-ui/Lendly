@@ -95,19 +95,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  /// **OPTIMIZED** - Load all data in a single API call
+  /// Reduces 6-8 separate API calls to just 1 consolidated request
   Future<void> _initData() async {
     try {
       uid = await SessionService.getUserId();
       
       if (uid != null) {
-        await Future.wait([
-          _loadUserData(),
-          _loadHomeData(),
-          _loadImpactData(),
-          _loadRecentChats(),
-          _loadGamificationData(),
-        ]);
+        // Check location permission first (non-blocking)
         await _checkLocationPermission();
+        
+        // Get location if available for nearby items
+        double? latitude;
+        double? longitude;
+        if (hasLocationPermission) {
+          try {
+            Position position = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+            ).timeout(const Duration(seconds: 5));
+            latitude = position.latitude;
+            longitude = position.longitude;
+          } catch (e) {
+            debugPrint('Location fetch failed, continuing without it: $e');
+          }
+        }
+        
+        // **SINGLE API CALL** - Replaces multiple separate calls
+        await _loadAllHomeData(latitude: latitude, longitude: longitude);
       }
       
       setState(() => isLoading = false);
@@ -119,6 +133,69 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           SnackBar(content: Text('Request timed out. Please try again.')),
         );
       }
+    }
+  }
+  
+  /// Load all home screen data in a single optimized API call
+  Future<void> _loadAllHomeData({double? latitude, double? longitude}) async {
+    try {
+      final homeService = HomeService(ApiConfig.baseUrl);
+      final data = await homeService.getAllHomeData(
+        uid: uid!,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      
+      // Extract user data
+      final user = data['user'] as Map<String, dynamic>? ?? {};
+      final wallet = data['wallet'] as Map<String, dynamic>? ?? {};
+      final impact = data['impact'] as Map<String, dynamic>? ?? {};
+      
+      setState(() {
+        // User info
+        userName = user['first_name'] ?? user['name'] ?? 'Student';
+        userCollege = user['college'] ?? 'Invertis University';
+        userAvatar = user['avatar_url'] ?? user['avatar'];
+        trustScore = (user['trustScore'] ?? 50).toInt();
+        verificationStatus = user['verification_status'] ?? 'pending';
+        notifications = user['notifications'] ?? 0;
+        
+        // Wallet
+        coinBalance = wallet['balance'] ?? 0;
+        
+        // Impact
+        impactData = impact;
+        
+        // Lists
+        newArrivals = (data['newArrivals'] as List<dynamic>?) ?? [];
+        itemsNearYou = (data['nearbyItems'] as List<dynamic>?) ?? [];
+        activeGroups = (data['groups'] as List<dynamic>?) ?? [];
+        recentChats = (data['recentChats'] as List<dynamic>?) ?? [];
+        
+        // Gamification
+        dailyChallenge = data['dailyChallenge'] as Map<String, dynamic>?;
+        campusActivities = (data['campusActivities'] as List<dynamic>?) ?? [];
+        loadingChallenge = false;
+        loadingActivities = false;
+      });
+    } catch (e) {
+      debugPrint('Failed to load consolidated home data: $e');
+      // Fallback to individual calls if consolidated fails
+      await _loadDataFallback();
+    }
+  }
+  
+  /// Fallback method using individual API calls if consolidated fails
+  Future<void> _loadDataFallback() async {
+    await Future.wait([
+      _loadUserData(),
+      _loadHomeData(),
+      _loadImpactData(),
+      _loadRecentChats(),
+      _loadGamificationData(),
+    ]);
+    if (hasLocationPermission) {
+      await _loadNearbyItems();
     }
   }
 
