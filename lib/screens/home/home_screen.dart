@@ -34,7 +34,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   // User Data
   String? userName;
   String? userCollege;
@@ -63,6 +63,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool hasLocationPermission = false;
   bool _locationPermissionAsked = false;
   
+  // Individual section loading states
+  bool isLoadingNewArrivals = true;
+  bool isLoadingGroups = true;
+  bool isLoadingNearbyItems = true;
+  bool isLoadingRecentChats = true;
+  bool isLoadingImpact = true;
+  
   // Animation Controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -80,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -93,8 +101,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fadeController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Force refresh user data from database when app resumes
+      _loadUserData();
+    }
+  }
+
+  /// Decode HTML entities in avatar path
+  String? _decodeAvatarPath(String? avatarPath) {
+    if (avatarPath == null || avatarPath.isEmpty) return null;
+    
+    return avatarPath.trim()
+        .replaceAll('&#x2F;', '/')
+        .replaceAll('&#x5C;', '\\')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"');
+  }
+
+  /// Sync avatar between local state and UserProvider
+  void _syncAvatarWithProvider() {
+    if (mounted) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      if (userProvider.avatar != null && userProvider.avatar != userAvatar) {
+        // Ensure provider avatar is also properly decoded
+        String? decodedAvatar = _decodeAvatarPath(userProvider.avatar!);
+            
+        setState(() {
+          userAvatar = decodedAvatar;
+        });
+        debugPrint('HomeScreen: Avatar synced from UserProvider and decoded: $decodedAvatar');
+      }
+    }
   }
 
   /// **OPTIMIZED** - Load all data in a single API call
@@ -120,8 +166,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }
     } finally {
-      debugPrint('HomeScreen: Setting isLoading = false');
-      if (mounted) {
+      debugPrint('HomeScreen: _initData completed');
+      if (mounted && isLoading) {
+        // Only set loading false if it wasn't already set during data loading
         setState(() => isLoading = false);
         _fadeController.forward();
       }
@@ -136,49 +183,251 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     debugPrint('HomeScreen: Got uid = ' + (uid?.toString() ?? 'null'));
     
     if (uid != null) {
-      // Check location permission first (non-blocking)
-      debugPrint('HomeScreen: Checking location permission...');
-      final locationWatch = Stopwatch()..start();
-      await _checkLocationPermission();
-      locationWatch.stop();
-      logger.logPerformance('Location permission + fetch', locationWatch.elapsed);
+      // PHASE 1: Load essential user data first and show UI immediately
+      debugPrint('HomeScreen: Loading essential user data first...');
+      await _loadEssentialUserData();
       
-      // Get location if available for nearby items
-      double? latitude;
-      double? longitude;
-      if (hasLocationPermission) {
-        try {
-          debugPrint('HomeScreen: Getting GPS location...');
-          final gpsWatch = Stopwatch()..start();
-          Position position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-          ).timeout(const Duration(seconds: 5));
-          gpsWatch.stop();
-          logger.logPerformance('GPS fetch', gpsWatch.elapsed);
-          latitude = position.latitude;
-          longitude = position.longitude;
-          debugPrint('HomeScreen: Got location: $latitude, $longitude');
-        } catch (e) {
-          debugPrint('HomeScreen: Location fetch failed, continuing without it: $e');
-        }
-      } else {
-        debugPrint('HomeScreen: No location permission, skipping GPS');
+      // UI should now be visible with basic data
+      if (mounted) {
+        _fadeController.forward();
       }
       
-      // **SINGLE API CALL** - Replaces multiple separate calls
-      debugPrint('HomeScreen: Starting API call...');
-      final apiWatch = Stopwatch()..start();
-      try {
-        await _loadAllHomeData(latitude: latitude, longitude: longitude);
-        debugPrint('HomeScreen: API call completed successfully');
-      } catch (e) {
-        debugPrint('HomeScreen: Exception in _loadAllHomeData: $e');
-        rethrow; // Let the timeout handler catch this
-      }
-      apiWatch.stop();
-      logger.logPerformance('Home API call', apiWatch.elapsed);
+      // PHASE 2: Load other sections progressively in background
+      debugPrint('HomeScreen: Loading other sections progressively...');
+      _loadProgressively();
     } else {
       debugPrint('HomeScreen: uid is null, not loading home data.');
+    }
+  }
+
+  // Store consolidated data for progressive loading
+  Map<String, dynamic>? _consolidatedData;
+
+  /// Load essential user data first (user info, wallet, notifications)
+  Future<void> _loadEssentialUserData() async {
+    try {
+      final homeService = HomeService(ApiConfig.baseUrl);
+      
+      debugPrint('HomeScreen: Calling getSummary API...');
+      // Load just user summary first
+      final userData = await homeService.getSummary(uid!).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('HomeScreen: User summary timed out');
+          return <String, dynamic>{};
+        },
+      );
+      
+      debugPrint('HomeScreen: getSummary returned: $userData');
+      debugPrint('HomeScreen: Available keys: ${userData.keys.toList()}');
+      
+      // Store the consolidated data for progressive loading
+      _consolidatedData = userData;
+      
+      if (mounted && userData.isNotEmpty) {
+        // Handle both flat and nested API structures
+        Map<String, dynamic> user;
+        Map<String, dynamic> wallet;
+        
+        if (userData.containsKey('user') && userData['user'] is Map) {
+          // Nested structure
+          user = userData['user'] as Map<String, dynamic>;
+          wallet = userData['wallet'] as Map<String, dynamic>? ?? {};
+          debugPrint('HomeScreen: Using nested structure');
+        } else {
+          // Flat structure
+          user = userData;
+          wallet = userData; // wallet data might be in the same flat object
+          debugPrint('HomeScreen: Using flat structure');
+        }
+        
+        debugPrint('HomeScreen: User data for extraction: $user');
+        debugPrint('HomeScreen: Wallet data for extraction: $wallet');
+        
+        final extractedName = user['name'] ?? user['first_name'] ?? 'Student';
+        final extractedCollege = user['college'] ?? 'Invertis University';
+        final extractedAvatar = user['avatar_url'] ?? user['avatar'] ?? user['avatarChoice'];
+        final extractedTrustScore = (user['trustScore'] ?? 50).toInt();
+        final extractedVerificationStatus = user['verification_status'] ?? user['verificationStatus'] ?? 'pending';
+        final extractedNotifications = user['notifications'] ?? 0;
+        final extractedCoinBalance = wallet['balance'] ?? wallet['coinBalance'] ?? 0;
+        
+        debugPrint('HomeScreen: Extracted data:');
+        debugPrint('  - name: $extractedName');
+        debugPrint('  - college: $extractedCollege');
+        debugPrint('  - avatar: $extractedAvatar');
+        debugPrint('  - trustScore: $extractedTrustScore');
+        debugPrint('  - verificationStatus: $extractedVerificationStatus');
+        debugPrint('  - notifications: $extractedNotifications');
+        debugPrint('  - coinBalance: $extractedCoinBalance');
+        
+        setState(() {
+          userName = extractedName;
+          userCollege = extractedCollege;
+          userAvatar = extractedAvatar;
+          trustScore = extractedTrustScore;
+          verificationStatus = extractedVerificationStatus;
+          notifications = extractedNotifications;
+          coinBalance = extractedCoinBalance;
+          
+          // Set main loading to false immediately so UI shows
+          isLoading = false;
+        });
+        debugPrint('HomeScreen: Essential user data setState completed');
+        debugPrint('HomeScreen: Current userName in state: $userName');
+        debugPrint('HomeScreen: isLoading set to false - UI should show now');
+      } else {
+        debugPrint('HomeScreen: userData is empty or widget not mounted');
+      }
+    } catch (e) {
+      debugPrint('HomeScreen: Failed to load essential user data: $e');
+      
+      // Fallback: try to load user data from profile endpoint
+      try {
+        debugPrint('HomeScreen: Trying fallback user profile API...');
+        final homeService = HomeService(ApiConfig.baseUrl);
+        final profileData = await homeService.getUserData(uid!).timeout(
+          const Duration(seconds: 5),
+        );
+        
+        debugPrint('HomeScreen: Profile data: $profileData');
+        
+        if (mounted && profileData.isNotEmpty) {
+          setState(() {
+            userName = profileData['name'] ?? profileData['firstName'] ?? 'Student';
+            userCollege = profileData['college'] ?? 'Invertis University';
+            userAvatar = profileData['avatar'] ?? profileData['avatarChoice'];
+            trustScore = (profileData['trustScore'] ?? 50).toInt();
+            verificationStatus = profileData['verificationStatus'] ?? 'pending';
+            // These might not be in profile data, keep defaults
+            notifications = 0;
+            coinBalance = 0;
+          });
+          debugPrint('HomeScreen: Fallback user data loaded successfully');
+        }
+      } catch (fallbackError) {
+        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+        // Set default values if both APIs fail
+        if (mounted) {
+          setState(() {
+            userName = 'Student';
+            userCollege = 'Invertis University';
+            userAvatar = null;
+            trustScore = 50;
+            verificationStatus = 'pending';
+            notifications = 0;
+            coinBalance = 0;
+          });
+          debugPrint('HomeScreen: Set default values due to both APIs failing');
+        }
+      }
+    }
+  }
+
+  /// Load other sections progressively after UI is shown
+  void _loadProgressively() {
+    // Check location permission first (non-blocking)
+    _checkLocationPermission().then((_) {
+      debugPrint('HomeScreen: Location permission check completed');
+    }).catchError((e) {
+      debugPrint('HomeScreen: Location permission error: $e');
+    });
+    
+    // Load different sections with delays to show progressive loading
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _loadNewArrivals();
+    });
+    
+    Future.delayed(const Duration(milliseconds: 600), () {
+      _loadGroups();
+    });
+    
+    Future.delayed(const Duration(milliseconds: 900), () {
+      _loadImpactData();
+    });
+    
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      _loadRecentChats();
+    });
+    
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      _loadGamificationData();
+    });
+  }
+
+  /// Load new arrivals section
+  Future<void> _loadNewArrivals() async {
+    try {
+      debugPrint('HomeScreen: Loading new arrivals from consolidated data...');
+      
+      if (_consolidatedData != null && _consolidatedData!.containsKey('newArrivals')) {
+        final arrivals = (_consolidatedData!['newArrivals'] as List<dynamic>?) ?? [];
+        
+        if (mounted) {
+          setState(() {
+            newArrivals = arrivals;
+            isLoadingNewArrivals = false;
+          });
+          debugPrint('HomeScreen: New arrivals loaded from consolidated data: ${arrivals.length} items');
+        }
+      } else {
+        debugPrint('HomeScreen: No consolidated data, making separate API call...');
+        final homeService = HomeService(ApiConfig.baseUrl);
+        final arrivals = await homeService.getNewArrivals(uid!);
+        
+        if (mounted) {
+          setState(() {
+            newArrivals = arrivals;
+            isLoadingNewArrivals = false;
+          });
+          debugPrint('HomeScreen: New arrivals loaded from API: ${arrivals.length} items');
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeScreen: Failed to load new arrivals: $e');
+      if (mounted) {
+        setState(() {
+          isLoadingNewArrivals = false;
+        });
+      }
+    }
+  }
+
+  /// Load groups section
+  Future<void> _loadGroups() async {
+    try {
+      debugPrint('HomeScreen: Loading groups from consolidated data...');
+      
+      if (_consolidatedData != null && _consolidatedData!.containsKey('groups')) {
+        final groups = (_consolidatedData!['groups'] as List<dynamic>?) ?? [];
+        
+        if (mounted) {
+          setState(() {
+            activeGroups = groups;
+            isLoadingGroups = false;
+          });
+          debugPrint('HomeScreen: Groups loaded from consolidated data: ${groups.length} items');
+        }
+      } else {
+        debugPrint('HomeScreen: No consolidated data, making separate API call...');
+        final homeService = HomeService(ApiConfig.baseUrl);
+        final groups = await homeService.getPublicGroups(uid!);
+        
+        if (mounted) {
+          setState(() {
+            activeGroups = groups;
+            isLoadingGroups = false;
+          });
+          debugPrint('HomeScreen: Groups loaded from API: ${groups.length} items');
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeScreen: Failed to load groups: $e');
+      if (mounted) {
+        setState(() {
+          isLoadingGroups = false;
+        });
+      }
     }
   }
   
@@ -309,18 +558,124 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       debugPrint('HomeScreen: hasLocationPermission = $hasLocationPermission');
       
       if (hasLocationPermission) {
-        debugPrint('HomeScreen: Loading nearby items...');
-        await _loadNearbyItems().timeout(
-          const Duration(seconds: 3),
-          onTimeout: () {
-            debugPrint('HomeScreen: _loadNearbyItems timed out');
-          },
-        );
+        debugPrint('HomeScreen: Loading nearby items progressively...');
+        // Load nearby items after a delay to not block UI
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _loadNearbyItemsProgressive();
+        });
       }
     } catch (e) {
       // Location permission check failed - continue without location features
       debugPrint('HomeScreen: Location permission error: $e');
       hasLocationPermission = false;
+    }
+  }
+
+  /// Load nearby items progressively with location
+  Future<void> _loadNearbyItemsProgressive() async {
+    if (mounted) {
+      setState(() {
+        isLoadingNearbyItems = true;
+      });
+    }
+    
+    try {
+      debugPrint('HomeScreen: Getting GPS location for nearby items...');
+      
+      Position position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 10), // Increased time limit
+          ),
+        ).timeout(const Duration(seconds: 12)); // Increased timeout
+        
+        debugPrint('HomeScreen: Got GPS position: ${position.latitude}, ${position.longitude}');
+      } on TimeoutException {
+        debugPrint('HomeScreen: GPS location timeout, trying last known position...');
+        position = await Geolocator.getLastKnownPosition() ??
+            Position(
+              latitude: 26.8467, // Default to Bareilly
+              longitude: 79.4304,
+              timestamp: DateTime.now(),
+              accuracy: 100.0,
+              altitude: 0.0,
+              altitudeAccuracy: 0.0,
+              heading: 0.0,
+              headingAccuracy: 0.0,
+              speed: 0.0,
+              speedAccuracy: 0.0,
+            );
+        debugPrint('HomeScreen: Using fallback position: ${position.latitude}, ${position.longitude}');
+      }
+      
+      debugPrint('HomeScreen: Making API call for nearby items...');
+      final homeService = HomeService(ApiConfig.baseUrl);
+      final nearbyItems = await homeService.getItemsNearYou(
+        uid: uid!,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('HomeScreen: Nearby items API call timed out');
+          return <dynamic>[];
+        },
+      ); // Increased from 5 to 10 seconds
+      
+      if (mounted) {
+        setState(() {
+          itemsNearYou = nearbyItems;
+          isLoadingNearbyItems = false;
+        });
+        debugPrint('HomeScreen: Nearby items loaded: ${nearbyItems.length} items');
+      }
+    } catch (e) {
+      debugPrint('HomeScreen: Failed to load nearby items: $e');
+      
+      // Try fallback - load nearby items without precise location
+      try {
+        final homeService = HomeService(ApiConfig.baseUrl);
+        
+        // Try to get last known position first
+        Position? lastPosition;
+        try {
+          lastPosition = await Geolocator.getLastKnownPosition();
+        } catch (_) {
+          // Last known position not available
+        }
+        
+        if (lastPosition != null) {
+          debugPrint('HomeScreen: Using last known position as fallback');
+          final nearbyItems = await homeService.getItemsNearYou(
+            uid: uid!,
+            latitude: lastPosition.latitude,
+            longitude: lastPosition.longitude,
+          ).timeout(const Duration(seconds: 8));
+          
+          if (mounted) {
+            setState(() {
+              itemsNearYou = nearbyItems;
+              isLoadingNearbyItems = false;
+            });
+            debugPrint('HomeScreen: Nearby items loaded with fallback: ${nearbyItems.length} items');
+          }
+          return;
+        }
+        
+        // Final fallback - use general location or skip
+        debugPrint('HomeScreen: No location available, loading empty nearby items');
+      } catch (fallbackError) {
+        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+      }
+      
+      if (mounted) {
+        setState(() {
+          itemsNearYou = []; // Set empty list instead of null
+          isLoadingNearbyItems = false;
+        });
+      }
     }
   }
 
@@ -332,11 +687,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() {
         userName = userData['first_name'] ?? userData['name'] ?? 'Student';
         userCollege = userData['college'] ?? 'Invertis University';
-        userAvatar = userData['avatar_url'] ?? userData['avatar'];
+        
+        // Decode HTML entities in avatar path
+        userAvatar = _decodeAvatarPath(userData['avatar_url'] ?? userData['avatar']);
+        
         trustScore = (userData['trustScore'] ?? 50).toInt();
         verificationStatus = userData['verification_status'] ?? 'pending';
         notifications = userData['notifications'] ?? 0;
       });
+      
+      debugPrint('HomeScreen: Avatar loaded from API and decoded: $userAvatar');
+      
+      // Sync avatar with UserProvider for global state persistence
+      if (mounted && userAvatar != null) {
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        if (userProvider.avatar != userAvatar) {
+          userProvider.setAvatar(userAvatar!);
+          debugPrint('HomeScreen: Avatar synced to UserProvider: $userAvatar');
+        }
+      }
       
       // Load coin balance separately
       if (uid != null) {
@@ -396,12 +765,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _loadImpactData() async {
     try {
+      if (mounted) {
+        setState(() {
+          isLoadingImpact = true;
+        });
+      }
+      
       final impactService = ImpactService(ApiConfig.baseUrl);
       final data = await impactService.getPersonalImpact(uid!);
-      setState(() => impactData = data);
+      
+      if (mounted) {
+        setState(() {
+          impactData = data;
+          isLoadingImpact = false;
+        });
+      }
     } catch (e) {
       debugPrint('Failed to load impact data: $e');
       if (mounted) {
+        setState(() {
+          isLoadingImpact = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load impact data.')),
         );
@@ -411,12 +795,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _loadRecentChats() async {
     try {
+      if (mounted) {
+        setState(() {
+          isLoadingRecentChats = true;
+        });
+      }
+      
       final chatService = ChatService();
       final chats = await chatService.getChatList(uid!, limit: 5);
-      setState(() => recentChats = chats);
+      
+      if (mounted) {
+        setState(() {
+          recentChats = chats;
+          isLoadingRecentChats = false;
+        });
+      }
     } catch (e) {
       debugPrint('Failed to load recent chats: $e');
       if (mounted) {
+        setState(() {
+          isLoadingRecentChats = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load recent chats.')),
         );
@@ -743,7 +1142,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
 
-    // Error or empty state handling
+    // Error or empty state handling - only show if all sections are loaded and empty
     final bool isAllDataEmpty =
         (newArrivals == null || newArrivals!.isEmpty) &&
         (itemsNearYou == null || itemsNearYou!.isEmpty) &&
@@ -751,7 +1150,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         (recentChats == null || recentChats!.isEmpty) &&
         (campusActivities == null || campusActivities!.isEmpty);
 
-    if (isAllDataEmpty) {
+    final bool allSectionsLoaded = !isLoadingNewArrivals && 
+                                  !isLoadingGroups && 
+                                  !isLoadingNearbyItems && 
+                                  !isLoadingRecentChats && 
+                                  !isLoadingImpact;
+
+    if (isAllDataEmpty && allSectionsLoaded) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         body: Center(
@@ -797,7 +1202,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: FadeTransition(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFFF8FAFC),
+              Color(0xFFF1F5F9),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: FadeTransition(
         opacity: _fadeAnimation,
         child: RefreshIndicator(
           onRefresh: _refreshData,
@@ -824,7 +1240,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               SliverToBoxAdapter(child: _buildQuickActions()),
               
               // Daily Challenge Card
-              SliverToBoxAdapter(child: _buildDailyChallenge()),
+              SliverToBoxAdapter(child: _buildDailyChallenge(context)),
               
               // Categories
               SliverToBoxAdapter(child: _buildCategories()),
@@ -850,6 +1266,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -951,12 +1368,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     children: [
                       // Enhanced User Avatar
                       GestureDetector(
-                        onTap: () {
+                        onTap: () async {
                           HapticFeedback.mediumImpact();
-                          Navigator.push(
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const ProfileScreen()),
                           );
+                          // Always refresh user data when returning from profile to sync avatar
+                          if (mounted) {
+                            await _loadUserData();
+                            setState(() {}); // Force rebuild to show updated avatar
+                          }
                         },
                         child: Hero(
                           tag: 'profile_avatar',
@@ -965,13 +1387,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             height: 60,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
+                              border: Border.all(color: Colors.white, width: 4),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                  spreadRadius: 1,
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, -4),
+                                  spreadRadius: -5,
                                 ),
                               ],
                               gradient: LinearGradient(
@@ -983,8 +1411,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ),
                             child: Consumer<UserProvider>(
                               builder: (context, userProvider, child) {
-                                // Use provider avatar if available, fallback to local userAvatar
-                                final avatarToShow = userProvider.avatar ?? userAvatar;
+                                // Prioritize local userAvatar (fresh from database) over provider
+                                final avatarToShow = userAvatar ?? userProvider.avatar;
+                                debugPrint('HomeScreen: Avatar widget using: $avatarToShow (local: $userAvatar, provider: ${userProvider.avatar})');
                                 return _buildAvatarWidget(avatarToShow, userName ?? 'U');
                               },
                             ),
@@ -2119,6 +2548,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: Color(0xFF1E293B),
                     ),
                   ),
+                  if (isLoadingNewArrivals) ...[
+                    const SizedBox(width: 8),
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               if ((newArrivals?.length ?? 0) > 5)
@@ -2137,15 +2577,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         SizedBox(
           height: 230,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: (newArrivals?.length ?? 0).clamp(0, 10),
-            itemBuilder: (context, index) {
-              final item = newArrivals![index];
-              return _buildItemCard(item, isHorizontal: true);
-            },
-          ),
+          child: isLoadingNewArrivals
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFF59E0B),
+                  ),
+                )
+              : (newArrivals?.isEmpty ?? true)
+                  ? Center(
+                      child: Text(
+                        'No new items available',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: (newArrivals?.length ?? 0).clamp(0, 10),
+                      itemBuilder: (context, index) {
+                        final item = newArrivals![index];
+                        return _buildItemCard(item, isHorizontal: true);
+                      },
+                    ),
         ),
       ],
     );
@@ -2312,12 +2768,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         margin: EdgeInsets.only(right: isHorizontal ? 16 : 0, bottom: isHorizontal ? 0 : 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFF1DBF73).withValues(alpha: 0.08),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: const Color(0xFF1DBF73).withValues(alpha: 0.06),
+              blurRadius: 16,
               offset: const Offset(0, 4),
+              spreadRadius: -2,
             ),
           ],
         ),
@@ -2499,6 +2966,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: Color(0xFF1E293B),
                     ),
                   ),
+                  if (isLoadingGroups) ...[
+                    const SizedBox(width: 8),
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Color(0xFF6366F1),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               TextButton(
@@ -2517,21 +2995,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         SizedBox(
           height: 70,
           width: double.infinity,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: (activeGroups?.length ?? 0).clamp(0, 5),
-            itemBuilder: (context, index) {
-              final group = activeGroups![index];
-              return _buildGroupChip(group);
-            },
-          ),
+          child: isLoadingGroups
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF6366F1),
+                  ),
+                )
+              : (activeGroups?.isEmpty ?? true)
+                  ? Center(
+                      child: Text(
+                        'No active groups',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: (activeGroups?.length ?? 0).clamp(0, 5),
+                      itemBuilder: (context, index) {
+                        final group = activeGroups![index];
+                        return _buildGroupChip(group, context);
+                      },
+                    ),
         ),
       ],
     );
   }
 
-  Widget _buildGroupChip(Map<String, dynamic> group) {
+  Widget _buildGroupChip(Map<String, dynamic> group, BuildContext context) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -2543,15 +3037,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Container(
         width: 150,
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+              blurRadius: 12,
               offset: const Offset(0, 4),
+              spreadRadius: -2,
             ),
           ],
         ),
@@ -2615,7 +3120,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
 
 
-  Widget _buildChatItem(Map<String, dynamic> chat, {bool isLast = false}) {
+  Widget _buildChatItem(Map<String, dynamic> chat, BuildContext context, {bool isLast = false}) {
     final otherUserName = chat['other_user_name'] ?? chat['otherUserName'] ?? chat['name'] ?? 'User';
     final otherUserAvatar = chat['other_user_avatar'] ?? chat['otherUserAvatar'] ?? chat['avatar'];
     final lastMessage = chat['last_message'] ?? chat['lastMessage'] ?? '';
@@ -2768,23 +3273,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDailyChallenge() {
+  Widget _buildDailyChallenge(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
+            colors: [
+              Color(0xFFFF6B35),
+              Color(0xFFFF8E53),
+              Color(0xFFFFAD7A),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            stops: [0.0, 0.6, 1.0],
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF6B35).withValues(alpha: 0.3),
+              color: const Color(0xFFFF6B35).withValues(alpha: 0.35),
+              blurRadius: 30,
+              offset: const Offset(0, 12),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: const Offset(0, 8),
+              spreadRadius: -4,
             ),
           ],
         ),
