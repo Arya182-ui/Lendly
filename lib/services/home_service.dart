@@ -6,6 +6,30 @@ class HomeService {
   final String baseUrl; // Kept for backwards compatibility
   HomeService(this.baseUrl);
 
+  /// **OPTIMIZED** - Get ALL home data in a single API call
+  /// This replaces multiple separate API calls with one consolidated request
+  /// Reduces network round-trips from 6-8 calls to just 1
+  Future<Map<String, dynamic>> getAllHomeData({
+    required String uid,
+    double? latitude,
+    double? longitude,
+  }) async {
+    if (uid.isEmpty) throw ArgumentError('uid cannot be empty');
+    
+    final queryParams = <String, String>{'uid': uid};
+    if (latitude != null && longitude != null) {
+      queryParams['latitude'] = latitude.toStringAsFixed(6);
+      queryParams['longitude'] = longitude.toStringAsFixed(6);
+    }
+    
+    return await SimpleApiClient.get(
+      '/home/all',
+      queryParams: queryParams,
+      cacheDuration: const Duration(minutes: 2),
+      requiresAuth: true,
+    );
+  }
+
   /// Get user summary data - cached for 2 minutes
   Future<Map<String, dynamic>> getSummary(String uid) async {
     if (uid.isEmpty) throw ArgumentError('uid cannot be empty');

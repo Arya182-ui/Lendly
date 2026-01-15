@@ -140,44 +140,107 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF1a237e)),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
-        title: const Text('Communities', style: TextStyle(color: Color(0xFF1a237e), fontWeight: FontWeight.bold)),
-        centerTitle: true,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        children: [
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            expandedHeight: 140,
+            floating: false,
+            pinned: true,
+            backgroundColor: const Color(0xFF1DBF73),
+            surfaceTintColor: const Color(0xFF1DBF73),
+            leading: Navigator.canPop(context)
+                ? IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_ios_rounded,
+                      color: innerBoxIsScrolled ? const Color(0xFF1E293B) : Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+                : null,
+            title: innerBoxIsScrolled
+                ? const Text(
+                    'Communities',
+                    style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+                  )
+                : null,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF1DBF73), Color(0xFF10B981), Color(0xFF059669)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 50, 20, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Communities',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Connect with your campus groups',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+        body: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          children: [
           // Search bar
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: const Color(0xFF1DBF73).withOpacity(0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: TextField(
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Search groups (study, hobby, sports, tech, social, other)',
+                hintText: 'Search groups...',
+                hintStyle: TextStyle(color: Colors.grey[400]),
                 border: InputBorder.none,
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF1a237e)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                prefixIcon: Container(
+                  padding: const EdgeInsets.all(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1DBF73).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.search, color: Color(0xFF1DBF73), size: 20),
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
-              style: const TextStyle(fontSize: 15),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
           ),
 
@@ -572,6 +635,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
             ),
           ],
         ],
+        ),
       ),
     );
   }
