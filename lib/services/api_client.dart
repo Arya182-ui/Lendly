@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/env_config.dart';
 import 'firebase_auth_service.dart';
 import 'app_logger.dart';
+import '../utils/enhanced_error_handling.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Enhanced API client with Firebase authentication, caching, retry logic, offline support, and error handling
 class ApiClient {
@@ -84,7 +86,15 @@ class ApiClient {
     // Get headers with authentication if required
     final headers = await _getHeaders(requiresAuth: requiresAuth);
     if (requiresAuth && headers == null) {
-      return ApiResponse.error('Authentication required', statusCode: 401);
+      return ApiResponse.error(
+        'Authentication required',
+        statusCode: 401,
+        apiError: ApiError(
+          message: 'Authentication required',
+          code: ApiErrorCodes.authTokenMissing,
+          requiresReauth: true,
+        ),
+      );
     }
 
     // Make the request with retry logic
@@ -112,28 +122,66 @@ class ApiClient {
           );
         }
 
-        // Handle authentication errors by refreshing token
+        // Enhanced error handling with automatic token refresh
         if (response.statusCode == 401 && requiresAuth) {
-          logger.warning('Auth token expired, refreshing...', tag: 'ApiClient');
-          final refreshedHeaders = await _getHeaders(requiresAuth: true, forceRefresh: true);
-          if (refreshedHeaders != null) {
-            // Retry with refreshed token
-            final retryResponse = await _client
-                .get(uri, headers: refreshedHeaders)
-                .timeout(EnvConfig.connectionTimeoutDuration);
+          final errorData = _parseErrorData(response.body);
+          final apiError = ApiError.fromResponse(errorData, response.statusCode);
+          
+          // Handle different types of auth errors
+          if (apiError.requiresTokenRefresh) {
+            logger.info('Token expired, attempting refresh...', tag: 'ApiClient');
+            final refreshSuccess = await _refreshToken();
             
-            if (retryResponse.statusCode == 200) {
-              final data = jsonDecode(retryResponse.body);
-              return ApiResponse.success(parser != null ? parser(data) : data as T);
+            if (refreshSuccess) {
+              final refreshedHeaders = await _getHeaders(requiresAuth: true, forceRefresh: true);
+              if (refreshedHeaders != null) {
+                final retryResponse = await _client
+                    .get(uri, headers: refreshedHeaders)
+                    .timeout(EnvConfig.connectionTimeoutDuration);
+                
+                if (retryResponse.statusCode == 200) {
+                  final data = jsonDecode(retryResponse.body);
+                  return ApiResponse.success(parser != null ? parser(data) : data as T);
+                }
+              }
             }
           }
+          
+          return ApiResponse.error(
+            apiError.userMessage,
+            statusCode: response.statusCode,
+            apiError: apiError,
+            rawResponse: response.body,
+          );
+        }
+
+        // Handle rate limiting with retry-after
+        if (response.statusCode == 429) {
+          final errorData = _parseErrorData(response.body);
+          final apiError = ApiError.fromResponse(errorData, response.statusCode);
+          
+          logger.warning('Rate limit exceeded', tag: 'ApiClient', data: {
+            'endpoint': endpoint,
+            'retryAfter': errorData['retryAfter'],
+          });
+          
+          return ApiResponse.error(
+            apiError.userMessage,
+            statusCode: response.statusCode,
+            apiError: apiError,
+            rawResponse: response.body,
+          );
         }
 
         // Don't retry for client errors (4xx)
         if (response.statusCode >= 400 && response.statusCode < 500) {
+          final errorData = _parseErrorData(response.body);
+          final apiError = ApiError.fromResponse(errorData, response.statusCode);
+          
           return ApiResponse.error(
-            _parseError(response.body),
+            apiError.userMessage,
             statusCode: response.statusCode,
+            apiError: apiError,
             rawResponse: response.body,
           );
         }
@@ -528,6 +576,55 @@ class ApiClient {
     }
   }
 
+  /// Enhanced error data parsing for structured errors from backend
+  Map<String, dynamic> _parseErrorData(String body) {
+    try {
+      final data = jsonDecode(body);
+      return {
+        'error': data['error'] ?? 'Unknown error',
+        'code': data['code'],
+        'details': data['details'],
+        'retryAfter': data['retryAfter'],
+        'timestamp': data['timestamp'],
+      };
+    } catch (_) {
+      return {
+        'error': 'Request failed',
+        'code': null,
+        'details': null,
+        'retryAfter': null,
+      };
+    }
+  }
+
+  /// Enhanced token refresh with Firebase Auth integration
+  Future<bool> _refreshToken() async {
+    try {
+      logger.info('Attempting token refresh...', tag: 'ApiClient');
+      
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        logger.warning('No current user for token refresh', tag: 'ApiClient');
+        return false;
+      }
+
+      // Force refresh the Firebase ID token
+      final newToken = await user.getIdToken(true);
+      
+      if (newToken?.isNotEmpty == true) {
+        // Store the new token
+        await _authService.storeIdToken(newToken!);
+        logger.info('Token refreshed successfully', tag: 'ApiClient');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      logger.error('Token refresh failed', tag: 'ApiClient', data: {'error': e.toString()});
+      return false;
+    }
+  }
+
   void _cleanMemoryCacheIfNeeded() {
     if (_memoryCache.length >= _maxMemoryCacheSize) {
       final entries = _memoryCache.entries.toList()
@@ -619,10 +716,11 @@ class ApiClient {
   }
 }
 
-/// API Response wrapper
+/// API Response wrapper with enhanced error handling
 class ApiResponse<T> {
   final T? data;
   final String? error;
+  final ApiError? apiError;
   final int? statusCode;
   final bool isSuccess;
   final bool fromCache;
@@ -630,9 +728,10 @@ class ApiResponse<T> {
   final bool isQueued;
   final String? rawResponse;
 
-  ApiResponse._({
+  ApiResponse._({ 
     this.data,
     this.error,
+    this.apiError,
     this.statusCode,
     required this.isSuccess,
     this.fromCache = false,
@@ -650,9 +749,16 @@ class ApiResponse<T> {
     );
   }
 
-  factory ApiResponse.error(String error, {int? statusCode, String? rawResponse, bool isOffline = false}) {
+  factory ApiResponse.error(
+    String error, {
+    int? statusCode,
+    ApiError? apiError,
+    String? rawResponse,
+    bool isOffline = false
+  }) {
     return ApiResponse._(
       error: error,
+      apiError: apiError,
       statusCode: statusCode,
       isSuccess: false,
       isOffline: isOffline,
@@ -673,7 +779,34 @@ class ApiResponse<T> {
     if (isSuccess && data != null) {
       return ApiResponse.success(mapper(data!), fromCache: fromCache, isOffline: isOffline);
     }
-    return ApiResponse.error(error ?? 'Unknown error', statusCode: statusCode);
+    return ApiResponse.error(
+      error ?? 'Unknown error',
+      statusCode: statusCode,
+      apiError: apiError,
+    );
+  }
+
+  /// Get user-friendly error message
+  String get userFriendlyError {
+    if (apiError != null) {
+      return apiError!.userMessage;
+    }
+    return error ?? 'An unexpected error occurred';
+  }
+
+  /// Check if error is retryable
+  bool get isRetryable {
+    return apiError?.isRetryable ?? false;
+  }
+
+  /// Check if requires token refresh
+  bool get requiresTokenRefresh {
+    return apiError?.requiresTokenRefresh ?? false;
+  }
+
+  /// Check if requires re-authentication
+  bool get requiresReauth {
+    return apiError?.requiresReauth ?? false;
   }
 }
 

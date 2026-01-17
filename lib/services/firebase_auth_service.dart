@@ -130,14 +130,23 @@ class FirebaseAuthService {
     }
   }
 
-  /// Get current Firebase ID token
-  /// Automatically refreshes if expired
+  /// Get current Firebase ID token with enhanced token management
+  /// Automatically refreshes if expired or if forceRefresh is true
   Future<String?> getIdToken({bool forceRefresh = false}) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
         logger.warning('No authenticated user for token request', tag: 'Auth');
         return null;
+      }
+
+      // Check if we should refresh proactively
+      if (!forceRefresh) {
+        final isFresh = await isTokenFresh();
+        if (!isFresh) {
+          logger.info('Token is stale, refreshing proactively', tag: 'Auth');
+          forceRefresh = true;
+        }
       }
 
       final token = await user.getIdToken(forceRefresh);
@@ -148,6 +157,7 @@ class FirebaseAuthService {
       logger.info('Firebase ID token retrieved', tag: 'Auth', data: {
         'uid': user.uid,
         'force_refresh': forceRefresh,
+        'token_length': token?.length ?? 0,
       });
       
       return token;
@@ -164,6 +174,38 @@ class FirebaseAuthService {
     } catch (e) {
       logger.error('Failed to read stored token', tag: 'Auth', data: {'error': e.toString()});
       return null;
+    }
+  }
+
+  /// Store ID token (used by API client after refresh)
+  Future<void> storeIdToken(String token) async {
+    try {
+      await _secureStorage.write(key: _tokenKey, value: token);
+      logger.info('ID token stored successfully', tag: 'Auth');
+    } catch (e) {
+      logger.error('Failed to store ID token', tag: 'Auth', data: {'error': e.toString()});
+    }
+  }
+
+  /// Check if current token is fresh (less than 50 minutes old)
+  /// Firebase tokens expire after 1 hour, so we refresh proactively
+  Future<bool> isTokenFresh() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      final tokenResult = await user.getIdTokenResult();
+      final issuedAt = tokenResult.issuedAtTime;
+      final now = DateTime.now();
+      
+      if (issuedAt == null) return false;
+      
+      // Consider token stale if it's older than 50 minutes
+      const maxAge = Duration(minutes: 50);
+      return now.difference(issuedAt) < maxAge;
+    } catch (e) {
+      logger.warning('Failed to check token freshness', tag: 'Auth', data: {'error': e.toString()});
+      return false;
     }
   }
 
