@@ -1,293 +1,488 @@
-/**
- * Enhanced Logging and Error Handling System
- */
-const fs = require('fs');
-const path = require('path');
+const admin = require('firebase-admin');
+const db = admin.firestore();
 
-// Ensure logs directory exists
-const logsDir = path.join(__dirname, '..', 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
 
-class Logger {
-  static levels = {
-    ERROR: 0,
-    WARN: 1,
-    INFO: 2,
-    DEBUG: 3
-  };
 
-  static colors = {
-    ERROR: '\x1b[31m', // Red
-    WARN: '\x1b[33m',  // Yellow
-    INFO: '\x1b[36m',  // Cyan
-    DEBUG: '\x1b[37m', // White
-    RESET: '\x1b[0m'
-  };
+const TRUST_SCORE_CONFIG = {
+  // Initial scores
+  NEW_USER: 50,
+  ID_VERIFIED_BASE: 70,
+  
+  // Transaction rewards
+  SUCCESSFUL_BORROW: 3,
+  SUCCESSFUL_LEND: 4,
+  SUCCESSFUL_RENT: 3,
+  SUCCESSFUL_SELL: 2,
+  ON_TIME_RETURN: 5,
+  EARLY_RETURN: 7,
+  
+  // Penalties
+  LATE_RETURN_1_DAY: -2,
+  LATE_RETURN_3_DAYS: -5,
+  LATE_RETURN_7_DAYS: -10,
+  LATE_RETURN_14_DAYS: -15,
+  FAILED_TRANSACTION: -10,
+  DISPUTE_RAISED: -15,
+  DISPUTE_LOST: -20,
+  CANCELLATION: -5,
+  
+  // Rating-based adjustments
+  RATING_5_STAR: 3,
+  RATING_4_STAR: 1,
+  RATING_3_STAR: 0,
+  RATING_2_STAR: -2,
+  RATING_1_STAR: -5,
+  
+  // Boundaries
+  MIN_SCORE: 0,
+  MAX_SCORE: 100,
+  MAX_PENALTY_PER_INCIDENT: -30,
+  
+  // Tiers
+  TIER_EXCELLENT: 90,
+  TIER_GOOD: 70,
+  TIER_AVERAGE: 50,
+  TIER_BELOW_AVERAGE: 30
+};
 
-  static currentLevel = process.env.LOG_LEVEL 
-    ? this.levels[process.env.LOG_LEVEL.toUpperCase()] 
-    : this.levels.INFO;
-
-  static formatMessage(level, message, meta = {}) {
-    const timestamp = new Date().toISOString();
-    const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta) : '';
-    return `[${timestamp}] [${level}] ${message} ${metaStr}`.trim();
+class TrustScoreManager {
+  
+  /**
+   * Calculate trust score tier and badge
+   */
+  static getTier(score) {
+    if (score >= TRUST_SCORE_CONFIG.TIER_EXCELLENT) {
+      return {
+        tier: 'Excellent',
+        badge: 'gold',
+        color: '#FFD700',
+        icon: '🏆',
+        benefits: ['Priority support', 'Higher borrowing limits', 'Featured listings']
+      };
+    }
+    if (score >= TRUST_SCORE_CONFIG.TIER_GOOD) {
+      return {
+        tier: 'Good',
+        badge: 'silver',
+        color: '#C0C0C0',
+        icon: '⭐',
+        benefits: ['Standard support', 'Normal borrowing limits', 'Verified badge']
+      };
+    }
+    if (score >= TRUST_SCORE_CONFIG.TIER_AVERAGE) {
+      return {
+        tier: 'Average',
+        badge: 'bronze',
+        color: '#CD7F32',
+        icon: '📋',
+        benefits: ['Basic support', 'Limited borrowing']
+      };
+    }
+    if (score >= TRUST_SCORE_CONFIG.TIER_BELOW_AVERAGE) {
+      return {
+        tier: 'Below Average',
+        badge: 'warning',
+        color: '#FFA500',
+        icon: '⚠️',
+        benefits: ['Restricted access', 'Lower limits']
+      };
+    }
+    return {
+      tier: 'Poor',
+      badge: 'restricted',
+      color: '#FF0000',
+      icon: '🚫',
+      benefits: ['Limited access only']
+    };
   }
 
-  static log(level, message, meta = {}) {
-    if (this.levels[level] > this.currentLevel) return;
-
-    const formattedMessage = this.formatMessage(level, message, meta);
-    
-    // Console output with colors
-    console.log(
-      `${this.colors[level]}${formattedMessage}${this.colors.RESET}`
-    );
-
-    // Write to file (async, non-blocking)
-    this.writeToFile(level, formattedMessage);
-  }
-
-  static writeToFile(level, message) {
+  /**
+   * Initialize trust score for new user
+   */
+  static async initializeTrustScore(uid) {
     try {
-      const date = new Date().toISOString().split('T')[0];
-      const filename = path.join(logsDir, `${date}.log`);
-      
-      fs.appendFile(filename, message + '\n', (err) => {
-        if (err) console.error('Failed to write to log file:', err);
+      const userRef = db.collection('users').doc(uid);
+      const trustScoreHistoryRef = db.collection('trustScoreHistory');
+
+      await userRef.update({
+        trustScore: TRUST_SCORE_CONFIG.NEW_USER,
+        trustScoreTier: this.getTier(TRUST_SCORE_CONFIG.NEW_USER).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Write errors to separate error log
-      if (level === 'ERROR') {
-        const errorFilename = path.join(logsDir, `${date}-error.log`);
-        fs.appendFile(errorFilename, message + '\n', (err) => {
-          if (err) console.error('Failed to write to error log file:', err);
-        });
+      // Log initial score
+      await trustScoreHistoryRef.add({
+        uid,
+        previousScore: 0,
+        newScore: TRUST_SCORE_CONFIG.NEW_USER,
+        change: TRUST_SCORE_CONFIG.NEW_USER,
+        reason: 'Account created',
+        type: 'initialization',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] Initialized for user ${uid}: ${TRUST_SCORE_CONFIG.NEW_USER}`);
+      return TRUST_SCORE_CONFIG.NEW_USER;
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error initializing:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set trust score to 70 when ID is verified
+   */
+  static async onIDVerification(uid) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
       }
-    } catch (err) {
-      console.error('Logging error:', err);
+
+      const currentScore = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      const newScore = TRUST_SCORE_CONFIG.ID_VERIFIED_BASE;
+      const change = newScore - currentScore;
+
+      await userRef.update({
+        trustScore: newScore,
+        trustScoreTier: this.getTier(newScore).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        isVerified: true
+      });
+
+      // Log verification bonus
+      await db.collection('trustScoreHistory').add({
+        uid,
+        previousScore: currentScore,
+        newScore,
+        change,
+        reason: 'ID verification completed',
+        type: 'id_verification',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] ID verified for user ${uid}: ${currentScore} → ${newScore} (+${change})`);
+      return { newScore, change };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error on ID verification:', error);
+      throw error;
     }
   }
 
-  static error(message, meta = {}) {
-    this.log('ERROR', message, meta);
-  }
+  /**
+   * Adjust trust score based on transaction completion
+   */
+  static async onTransactionComplete(uid, transactionType, details = {}) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
 
-  static warn(message, meta = {}) {
-    this.log('WARN', message, meta);
-  }
+      const currentScore = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      let change = 0;
+      let reason = '';
 
-  static info(message, meta = {}) {
-    this.log('INFO', message, meta);
-  }
+      // Determine score change based on transaction type
+      switch (transactionType.toLowerCase()) {
+        case 'borrow':
+          change = TRUST_SCORE_CONFIG.SUCCESSFUL_BORROW;
+          reason = 'Completed borrowing transaction';
+          break;
+        case 'lend':
+          change = TRUST_SCORE_CONFIG.SUCCESSFUL_LEND;
+          reason = 'Completed lending transaction';
+          break;
+        case 'rent':
+          change = TRUST_SCORE_CONFIG.SUCCESSFUL_RENT;
+          reason = 'Completed rental transaction';
+          break;
+        case 'sell':
+          change = TRUST_SCORE_CONFIG.SUCCESSFUL_SELL;
+          reason = 'Completed sale transaction';
+          break;
+      }
 
-  static debug(message, meta = {}) {
-    this.log('DEBUG', message, meta);
-  }
+      // Bonus for on-time or early return
+      if (details.returnedOnTime === true) {
+        change += TRUST_SCORE_CONFIG.ON_TIME_RETURN;
+        reason += ' (on-time return bonus)';
+      } else if (details.returnedEarly === true) {
+        change += TRUST_SCORE_CONFIG.EARLY_RETURN;
+        reason += ' (early return bonus)';
+      }
 
-  // HTTP request logging
-  static logRequest(req, res, duration) {
-    const meta = {
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('User-Agent'),
-      contentLength: req.get('Content-Length') || 0
-    };
+      const newScore = Math.max(
+        TRUST_SCORE_CONFIG.MIN_SCORE,
+        Math.min(TRUST_SCORE_CONFIG.MAX_SCORE, currentScore + change)
+      );
 
-    if (res.statusCode >= 400) {
-      this.warn('HTTP Request Failed', meta);
-    } else if (duration > 2000) {
-      this.warn('Slow HTTP Request', meta);
-    } else {
-      this.info('HTTP Request', meta);
+      await userRef.update({
+        trustScore: newScore,
+        trustScoreTier: this.getTier(newScore).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Log transaction impact
+      await db.collection('trustScoreHistory').add({
+        uid,
+        previousScore: currentScore,
+        newScore,
+        change,
+        reason,
+        type: 'transaction_complete',
+        transactionType,
+        transactionId: details.transactionId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] Transaction complete for ${uid}: ${currentScore} → ${newScore} (+${change})`);
+      return { newScore, change };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error on transaction complete:', error);
+      throw error;
     }
   }
 
-  // Database operation logging
-  static logDatabaseOperation(operation, collection, duration, error = null) {
-    const meta = {
-      operation,
-      collection,
-      duration: `${duration}ms`
-    };
+  /**
+   * Penalize for late return
+   */
+  static async onLateReturn(uid, daysLate, transactionId) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
 
-    if (error) {
-      meta.error = error.message;
-      this.error('Database Operation Failed', meta);
-    } else if (duration > 1000) {
-      this.warn('Slow Database Operation', meta);
-    } else {
-      this.debug('Database Operation', meta);
+      const currentScore = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      let change = 0;
+
+      // Progressive penalties based on how late
+      if (daysLate >= 14) {
+        change = TRUST_SCORE_CONFIG.LATE_RETURN_14_DAYS;
+      } else if (daysLate >= 7) {
+        change = TRUST_SCORE_CONFIG.LATE_RETURN_7_DAYS;
+      } else if (daysLate >= 3) {
+        change = TRUST_SCORE_CONFIG.LATE_RETURN_3_DAYS;
+      } else if (daysLate >= 1) {
+        change = TRUST_SCORE_CONFIG.LATE_RETURN_1_DAY;
+      }
+
+      // Apply max penalty cap
+      change = Math.max(change, TRUST_SCORE_CONFIG.MAX_PENALTY_PER_INCIDENT);
+
+      const newScore = Math.max(
+        TRUST_SCORE_CONFIG.MIN_SCORE,
+        currentScore + change
+      );
+
+      await userRef.update({
+        trustScore: newScore,
+        trustScoreTier: this.getTier(newScore).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Log penalty
+      await db.collection('trustScoreHistory').add({
+        uid,
+        previousScore: currentScore,
+        newScore,
+        change,
+        reason: `Late return: ${daysLate} day(s) overdue`,
+        type: 'late_return',
+        daysLate,
+        transactionId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] Late return penalty for ${uid}: ${currentScore} → ${newScore} (${change})`);
+      return { newScore, change };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error on late return:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Adjust score based on rating received
+   */
+  static async onRatingReceived(uid, rating, fromUid, transactionId) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
+
+      const currentScore = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      let change = 0;
+
+      // Score adjustment based on rating
+      if (rating >= 5) change = TRUST_SCORE_CONFIG.RATING_5_STAR;
+      else if (rating >= 4) change = TRUST_SCORE_CONFIG.RATING_4_STAR;
+      else if (rating >= 3) change = TRUST_SCORE_CONFIG.RATING_3_STAR;
+      else if (rating >= 2) change = TRUST_SCORE_CONFIG.RATING_2_STAR;
+      else change = TRUST_SCORE_CONFIG.RATING_1_STAR;
+
+      const newScore = Math.max(
+        TRUST_SCORE_CONFIG.MIN_SCORE,
+        Math.min(TRUST_SCORE_CONFIG.MAX_SCORE, currentScore + change)
+      );
+
+      await userRef.update({
+        trustScore: newScore,
+        trustScoreTier: this.getTier(newScore).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Log rating impact
+      await db.collection('trustScoreHistory').add({
+        uid,
+        previousScore: currentScore,
+        newScore,
+        change,
+        reason: `Received ${rating}-star rating`,
+        type: 'rating_received',
+        rating,
+        fromUid,
+        transactionId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] Rating received for ${uid}: ${currentScore} → ${newScore} (${change})`);
+      return { newScore, change };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error on rating received:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle dispute or cancellation
+   */
+  static async onDispute(uid, disputeType, won, transactionId) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
+
+      const currentScore = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      let change = 0;
+      let reason = '';
+
+      if (disputeType === 'cancellation') {
+        change = TRUST_SCORE_CONFIG.CANCELLATION;
+        reason = 'Transaction cancelled';
+      } else if (won) {
+        change = TRUST_SCORE_CONFIG.DISPUTE_RAISED; // Partial penalty even if won
+        reason = 'Dispute raised (won)';
+      } else {
+        change = TRUST_SCORE_CONFIG.DISPUTE_LOST;
+        reason = 'Dispute lost';
+      }
+
+      // Apply max penalty cap
+      change = Math.max(change, TRUST_SCORE_CONFIG.MAX_PENALTY_PER_INCIDENT);
+
+      const newScore = Math.max(
+        TRUST_SCORE_CONFIG.MIN_SCORE,
+        currentScore + change
+      );
+
+      await userRef.update({
+        trustScore: newScore,
+        trustScoreTier: this.getTier(newScore).tier,
+        trustScoreUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Log dispute impact
+      await db.collection('trustScoreHistory').add({
+        uid,
+        previousScore: currentScore,
+        newScore,
+        change,
+        reason,
+        type: 'dispute',
+        disputeType,
+        won,
+        transactionId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`[TRUST_SCORE] Dispute handled for ${uid}: ${currentScore} → ${newScore} (${change})`);
+      return { newScore, change };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error on dispute:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get trust score history for a user
+   */
+  static async getHistory(uid, limit = 20) {
+    try {
+      const historyRef = db.collection('trustScoreHistory')
+        .where('uid', '==', uid)
+        .orderBy('createdAt', 'desc')
+        .limit(limit);
+
+      const snapshot = await historyRef.get();
+      const history = [];
+
+      snapshot.forEach(doc => {
+        history.push({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()
+        });
+      });
+
+      return history;
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error getting history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current trust score and details
+   */
+  static async getCurrentScore(uid) {
+    try {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
+
+      const score = userDoc.data().trustScore || TRUST_SCORE_CONFIG.NEW_USER;
+      const tier = this.getTier(score);
+
+      return {
+        score,
+        ...tier,
+        lastUpdated: userDoc.data().trustScoreUpdatedAt?.toDate()
+      };
+    } catch (error) {
+      console.error('[TRUST_SCORE] Error getting current score:', error);
+      throw error;
     }
   }
 }
-
-/**
- * Enhanced Error Classes
- */
-class AppError extends Error {
-  constructor(message, statusCode = 500, code = null) {
-    super(message);
-    this.name = this.constructor.name;
-    this.statusCode = statusCode;
-    this.code = code;
-    this.isOperational = true;
-    
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-class ValidationError extends AppError {
-  constructor(message, field = null) {
-    super(message, 400, 'VALIDATION_ERROR');
-    this.field = field;
-  }
-}
-
-class NotFoundError extends AppError {
-  constructor(resource = 'Resource') {
-    super(`${resource} not found`, 404, 'NOT_FOUND');
-  }
-}
-
-class AuthenticationError extends AppError {
-  constructor(message = 'Authentication required') {
-    super(message, 401, 'AUTHENTICATION_ERROR');
-  }
-}
-
-class AuthorizationError extends AppError {
-  constructor(message = 'Insufficient permissions') {
-    super(message, 403, 'AUTHORIZATION_ERROR');
-  }
-}
-
-class DatabaseError extends AppError {
-  constructor(message = 'Database operation failed', originalError = null) {
-    super(message, 500, 'DATABASE_ERROR');
-    this.originalError = originalError;
-  }
-}
-
-class RateLimitError extends AppError {
-  constructor(message = 'Rate limit exceeded') {
-    super(message, 429, 'RATE_LIMIT_ERROR');
-  }
-}
-
-/**
- * Global Error Handler
- */
-const globalErrorHandler = (err, req, res, next) => {
-  // Log the error
-  Logger.error('Unhandled Error', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-
-  // Don't leak error details in production
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
-  // Handle known errors
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      success: false,
-      error: err.message,
-      code: err.code,
-      ...(isDevelopment && { stack: err.stack })
-    });
-  }
-
-  // Handle specific error types
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: err.details
-    });
-  }
-
-  if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
-    return res.status(408).json({
-      success: false,
-      error: 'Request timeout'
-    });
-  }
-
-  if (err.code === 'ECONNREFUSED') {
-    return res.status(503).json({
-      success: false,
-      error: 'Service temporarily unavailable'
-    });
-  }
-
-  // Firebase errors
-  if (err.code && err.code.startsWith('auth/')) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication failed'
-    });
-  }
-
-  // Default error response
-  res.status(500).json({
-    success: false,
-    error: isDevelopment ? err.message : 'Internal server error',
-    ...(isDevelopment && { stack: err.stack })
-  });
-};
-
-/**
- * Async error wrapper
- */
-const asyncHandler = (fn) => {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-};
-
-/**
- * Process-level error handlers
- */
-process.on('uncaughtException', (err) => {
-  Logger.error('Uncaught Exception', {
-    message: err.message,
-    stack: err.stack
-  });
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  Logger.error('Unhandled Rejection', {
-    reason: reason?.message || reason,
-    promise: promise.toString()
-  });
-});
-
-// Graceful shutdown handler
-process.on('SIGTERM', () => {
-  Logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
 
 module.exports = {
-  Logger,
-  AppError,
-  ValidationError,
-  NotFoundError,
-  AuthenticationError,
-  AuthorizationError,
-  DatabaseError,
-  RateLimitError,
-  globalErrorHandler,
-  asyncHandler
+  TrustScoreManager,
+  TRUST_SCORE_CONFIG
 };
