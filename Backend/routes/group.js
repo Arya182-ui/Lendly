@@ -5,6 +5,8 @@ const { batchGetDocsAsMap } = require('../utils/firestore-helpers');
 const { validateBody, validateQuery, validateParams } = require('../middleware/validation');
 const groupSchemas = require('../validation/groups.schemas');
 const { authenticateUser } = require('../middleware/auth');
+const { LendlyQueryOptimizer } = require('../utils/advanced-query-optimizer');
+const { globalPaginationManager, extractPaginationParams, formatPaginatedResponse } = require('../utils/advanced-pagination');
 
 const router = express.Router();
 const db = admin.firestore();
@@ -254,6 +256,101 @@ router.post('/join', authenticateUser, validateBody(groupSchemas.joinGroup), asy
     
     return res.json({ 
       success: true, 
+      message: `Successfully joined "${groupData.name}"`,
+      group: {
+        id: groupId,
+        name: groupData.name,
+        memberCount: currentMemberCount + 1
+      }
+    });
+  } catch (err) {
+    console.error('Error joining group:', err);
+    return res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// Join a group with groupId as URL parameter (alternative endpoint)
+router.post('/:groupId/join', authenticateUser, async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
+    const userId = req.uid;
+    
+    if (!groupId || !isValidLength(groupId, 1, 128)) {
+      return res.status(400).json({ error: 'Valid groupId is required' });
+    }
+    
+    const groupRef = db.collection('groups').doc(groupId);
+    const groupDoc = await groupRef.get();
+    
+    if (!groupDoc.exists) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    
+    const groupData = groupDoc.data();
+    
+    // Enhanced validation checks
+    if (groupData.status === 'inactive') {
+      return res.status(400).json({ error: 'Group is no longer active' });
+    }
+    
+    if (groupData.members?.includes(userId)) {
+      return res.status(400).json({ error: 'Already a member of this group' });
+    }
+    
+    // Check if group is at capacity
+    const currentMemberCount = groupData.memberCount || groupData.members?.length || 0;
+    const maxMembers = groupData.maxMembers || GROUP_CONSTANTS.MAX_MEMBERS;
+    
+    if (currentMemberCount >= maxMembers) {
+      return res.status(400).json({ error: 'Group is full' });
+    }
+    
+    // Check if user has reached their group limit
+    const hasReachedLimit = await checkUserGroupLimit(userId);
+    if (hasReachedLimit) {
+      return res.status(400).json({ 
+        error: `Cannot join more than ${GROUP_CONSTANTS.MAX_GROUPS_PER_USER} groups` 
+      });
+    }
+    
+    // Get user data for notifications
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    
+    // Add user to group members and update member count
+    await groupRef.update({
+      members: admin.firestore.FieldValue.arrayUnion(userId),
+      memberCount: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Notify group members about new member
+    if (groupData.members?.length > 0) {
+      const notifications = groupData.members.map(memberId => 
+        createNotification(
+          memberId,
+          'group_member_joined',
+          'New Group Member',
+          `${userData?.name || 'Someone'} joined your group "${groupData.name}"`,
+          { groupId, groupName: groupData.name }
+        )
+      );
+      await Promise.all(notifications);
+    }
+    
+    // Notify the user who joined
+    await createNotification(
+      userId,
+      'group_joined',
+      'Welcome to the Group!',
+      `You've successfully joined "${groupData.name}". Start connecting with your group members!`,
+      { groupId, groupName: groupData.name }
+    );
+    
+    console.log('User joined group successfully:', { userId, groupId });
+    
+    return res.status(200).json({
+      success: true,
       message: `Successfully joined "${groupData.name}"`,
       group: {
         id: groupId,
@@ -662,4 +759,3 @@ router.get('/:id/members', async (req, res) => {
 });
 
 module.exports = router;
-
