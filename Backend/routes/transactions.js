@@ -7,6 +7,8 @@ const { validateBody, validateQuery, validateParams } = require('../middleware/v
 const transactionSchemas = require('../validation/transactions.schemas');
 const { TrustScoreManager } = require('../utils/trust-score-manager');
 const { CoinsManager } = require('../utils/coins-manager');
+const { LendlyQueryOptimizer } = require('../utils/advanced-query-optimizer');
+const { globalPaginationManager, extractPaginationParams, formatPaginatedResponse } = require('../utils/advanced-pagination');
 
 const router = express.Router();
 const db = admin.firestore();
@@ -744,6 +746,46 @@ router.post('/:id/mark-late', authenticateUser, async (req, res) => {
   } catch (err) {
     console.error('Error marking transaction as late:', err);
     res.status(500).json({ error: 'Failed to mark transaction as late' });
+  }
+});
+
+// --- GET OPTIMIZED TRANSACTION HISTORY ---
+router.get('/history/:userId', authenticateUser, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status, type } = req.query;
+    const paginationParams = extractPaginationParams(req);
+    
+    // Verify user can access this data
+    if (req.user.uid !== userId) {
+      return res.status(403).json({ error: 'Cannot access another user\'s transaction history' });
+    }
+    
+    // Use optimized query with composite indexes
+    const result = await LendlyQueryOptimizer.getTransactionHistory({
+      userId,
+      status,
+      type,
+      limit: paginationParams.pageSize,
+      cursor: paginationParams.cursor
+    });
+    
+    // Format response with pagination metadata
+    const response = formatPaginatedResponse(
+      result,
+      `/api/transactions/history/${userId}`,
+      req
+    );
+    
+    res.json(response);
+    
+  } catch (err) {
+    console.error('Error fetching transaction history:', err);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch transaction history',
+      details: err.message 
+    });
   }
 });
 
