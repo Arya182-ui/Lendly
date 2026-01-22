@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -25,22 +26,17 @@ class AppImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget imageWidget;
-    
+
     if (imageUrl == null || imageUrl!.isEmpty) {
       imageWidget = errorWidget ?? AppImagePlaceholders.profilePlaceholder(size: width ?? height ?? 50);
     } else {
-      imageWidget = Image.network(
-        imageUrl!,
+      imageWidget = CachedNetworkImage(
+        imageUrl: imageUrl!,
         width: width,
         height: height,
         fit: fit,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return placeholder ?? AppImagePlaceholders.loading(size: width ?? height);
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return errorWidget ?? AppImagePlaceholders.profilePlaceholder(size: width ?? height);
-        },
+        placeholder: (context, url) => placeholder ?? AppImagePlaceholders.loading(size: width ?? height),
+        errorWidget: (context, url, error) => errorWidget ?? AppImagePlaceholders.profilePlaceholder(size: width ?? height),
       );
     }
 

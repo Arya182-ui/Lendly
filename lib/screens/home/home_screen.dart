@@ -2203,7 +2203,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   'Lend Item',
                   Icons.add_box_rounded,
                   const Color(0xFF1DBF73),
-                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddItemScreen())),
+                  () => _handleLendItemClick(),
                 ),
               ),
               const SizedBox(width: 12),
@@ -3667,5 +3667,130 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       default:
         return 'had activity with';
     }
+  }
+
+  /// Handle lend item click with verification check
+  void _handleLendItemClick() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    
+    // Check if user is verified
+    if (userProvider.verificationStatus != 'verified') {
+      _showVerificationRequiredDialog();
+      return;
+    }
+    
+    // If verified, navigate to add item screen
+    Navigator.push(
+      context, 
+      MaterialPageRoute(builder: (_) => AddItemScreen())
+    );
+  }
+
+  /// Show dialog for unverified users
+  void _showVerificationRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.verified_user_outlined,
+                color: Colors.orange,
+                size: 24,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Verification Required',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You need to verify your account before lending items.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Verification helps build trust in our community and protects all users.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.orange[800],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Later',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _navigateToVerification();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('Verify Now'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Navigate to verification screen
+  void _navigateToVerification() {
+    // Navigate to profile screen where verification can be done
+    Navigator.push(
+      context, 
+      MaterialPageRoute(builder: (_) => ProfileScreen())
+    );
   }
 }

@@ -77,7 +77,7 @@ class SmartErrorDisplay extends StatelessWidget {
                 ),
             ],
           ),
-          if (showDetails && error!.details != null) ..[
+          if (showDetails && error!.details != null) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(8),
@@ -95,12 +95,12 @@ class SmartErrorDisplay extends StatelessWidget {
               ),
             ),
           ],
-          if (_shouldShowActionButtons()) ..[
+          if (_shouldShowActionButtons()) ...[
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (error!.requiresReauth) ..[
+                if (error!.requiresReauth) ...[
                   TextButton.icon(
                     onPressed: () => _handleReauth(context),
                     icon: const Icon(Icons.login),
@@ -109,7 +109,7 @@ class SmartErrorDisplay extends StatelessWidget {
                       foregroundColor: error!.color,
                     ),
                   ),
-                ] else if (error!.requiresTokenRefresh) ..[
+                ] else if (error!.requiresTokenRefresh) ...[
                   TextButton.icon(
                     onPressed: () => _handleTokenRefresh(context),
                     icon: const Icon(Icons.refresh),
@@ -118,7 +118,7 @@ class SmartErrorDisplay extends StatelessWidget {
                       foregroundColor: error!.color,
                     ),
                   ),
-                ] else if (onRetry != null && error!.isRetryable) ..[
+                ] else if (onRetry != null && error!.isRetryable) ...[
                   TextButton.icon(
                     onPressed: onRetry,
                     icon: const Icon(Icons.refresh),
@@ -272,7 +272,7 @@ class SecurityAwareLoadingIndicator extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 16),
-          if (isTokenRefreshing) ..[
+          if (isTokenRefreshing) ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -291,7 +291,7 @@ class SecurityAwareLoadingIndicator extends StatelessWidget {
                 ),
               ],
             ),
-          ] else if (message != null) ..[
+          ] else if (message != null) ...[
             Text(
               message!,
               textAlign: TextAlign.center,
@@ -409,7 +409,7 @@ class CoinsBalanceWidget extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showIcon) ..[
+            if (showIcon) ...[
               const Icon(
                 Icons.monetization_on,
                 color: Colors.amber,

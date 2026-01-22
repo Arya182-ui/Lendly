@@ -13,6 +13,7 @@ class SearchService {
     bool? availableOnly,
     String sortBy = 'newest',
     int limit = 50,
+    int offset = 0,
     String? excludeUid,
   }) async {
     final queryParams = <String, String>{
@@ -25,6 +26,7 @@ class SearchService {
       if (availableOnly != null) 'available': availableOnly.toString(),
       'sortBy': sortBy,
       'limit': limit.toString(),
+      'offset': offset.toString(),
       if (excludeUid != null) 'excludeUid': excludeUid,
     };
 
@@ -47,21 +49,23 @@ class SearchService {
   }
 
   /// Get trending items (mock implementation - could be enhanced with real metrics)
-  static Future<List<dynamic>> getTrendingItems({int limit = 10}) async {
+  static Future<List<dynamic>> getTrendingItems({int limit = 10, int offset = 0}) async {
     // For now, get newest items as "trending"
     final result = await searchItems(
       sortBy: 'newest',
       limit: limit,
+      offset: offset,
       availableOnly: true,
     );
     return result['items'] ?? [];
   }
 
   /// Get new arrivals
-  static Future<List<dynamic>> getNewArrivals({int limit = 10}) async {
+  static Future<List<dynamic>> getNewArrivals({int limit = 10, int offset = 0}) async {
     final result = await searchItems(
       sortBy: 'newest',
       limit: limit,
+      offset: offset,
       availableOnly: true,
     );
     return result['items'] ?? [];
@@ -73,11 +77,13 @@ class SearchService {
     required double longitude,
     double radiusKm = 50,
     int limit = 10,
+    int offset = 0,
   }) async {
     // This would require location-based search in the backend
     // For now, return general search results
     final result = await searchItems(
       limit: limit,
+      offset: offset,
       availableOnly: true,
     );
     return result['items'] ?? [];

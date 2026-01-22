@@ -80,7 +80,7 @@ class NetworkManager {
     }
   }
   /// Handle connectivity changes
-  void _onConnectivityChanged(ConnectivityResult result) {
+  void _onConnectivityChanged(List<ConnectivityResult> results) {
     _checkNetworkStatus();
   }
   /// Update network status and notify listeners
