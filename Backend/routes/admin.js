@@ -4,6 +4,8 @@ const router = express.Router();
 const { isValidUid, sanitizeHtml, trimObjectStrings } = require('../utils/validators');
 const { TrustScoreManager } = require('../utils/trust-score-manager');
 const { CoinsManager } = require('../utils/coins-manager');
+const { LendlyQueryOptimizer } = require('../utils/advanced-query-optimizer');
+const { globalPaginationManager, extractPaginationParams, formatPaginatedResponse } = require('../utils/advanced-pagination');
 
 const db = admin.firestore();
 
@@ -29,40 +31,57 @@ async function requireAdminAuth(req, res, next) {
   }
 }
 
-// --- GET PENDING VERIFICATIONS ---
+// --- GET PENDING VERIFICATIONS WITH ADVANCED OPTIMIZATION ---
 router.post('/pending-verifications', requireAdminAuth, async (req, res) => {
   try {
-    const { limit = 20, offset = 0 } = req.body;
+    const { college = null, priority = null } = req.body;
+    const paginationParams = extractPaginationParams(req);
     
-    const snapshot = await db.collection('users')
-      .where('verificationStatus', '==', 'pending')
-      .orderBy('verificationRequestedAt', 'desc')
-      .limit(Math.min(parseInt(limit), 50))
-      .offset(parseInt(offset))
-      .get();
-    
-    const pendingUsers = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        name: data.name || '',
-        email: data.email || '',
-        college: data.college || '',
-        verificationDocument: data.verificationDocument || '',
-        verificationRequestedAt: data.verificationRequestedAt,
-        studentId: data.studentId || '',
-        phone: data.phone || ''
-      };
+    // Build optimized filters
+    const filters = {};
+    if (college) {
+      filters.college = college;
+    }
+    if (priority) {
+      filters.priority = priority;
+    }
+
+    // Use optimized query with proper indexing
+    const result = await LendlyQueryOptimizer.getPendingVerifications({
+      college,
+      priority,
+      limit: paginationParams.pageSize,
+      cursor: paginationParams.cursor
     });
     
-    res.json({ 
-      success: true, 
-      users: pendingUsers,
-      total: pendingUsers.length 
-    });
+    // Enrich with user data efficiently
+    const enrichedUsers = result.data.map(userData => ({
+      uid: userData.id,
+      name: userData.name || '',
+      email: userData.email || '',
+      college: userData.college || '',
+      verificationDocument: userData.verificationDocument || '',
+      verificationRequestedAt: userData.verificationRequestedAt,
+      studentId: userData.studentId || '',
+      phone: userData.phone || '',
+      priority: userData.priority || 'normal'
+    }));
+
+    // Format response with pagination metadata
+    const response = formatPaginatedResponse(
+      { ...result, items: enrichedUsers },
+      '/api/admin/pending-verifications',
+      req
+    );
+    
+    res.json(response);
   } catch (err) {
     console.error('Error fetching pending verifications:', err);
-    res.status(500).json({ error: 'Failed to fetch pending verifications' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch pending verifications',
+      details: err.message 
+    });
   }
 });
 
@@ -176,38 +195,112 @@ router.post('/reject-verification', requireAdminAuth, async (req, res) => {
   }
 });
 
-// --- ADMIN STATS ---
+// --- OPTIMIZED ADMIN STATS WITH ADVANCED QUERYING ---
 router.post('/stats', requireAdminAuth, async (req, res) => {
   try {
-    // Run multiple queries in parallel
-    const [
-      totalUsersSnapshot,
-      verifiedUsersSnapshot,
-      pendingUsersSnapshot,
-      totalGroupsSnapshot,
-      totalItemsSnapshot
-    ] = await Promise.all([
-      db.collection('users').count().get(),
-      db.collection('users').where('verificationStatus', '==', 'verified').count().get(),
-      db.collection('users').where('verificationStatus', '==', 'pending').count().get(),
-      db.collection('groups').count().get(),
-      db.collection('items').count().get()
-    ]);
+    const { college = null, dateRange = null } = req.body;
     
-    const stats = {
-      totalUsers: totalUsersSnapshot.data().count,
-      verifiedUsers: verifiedUsersSnapshot.data().count,
-      pendingUsers: pendingUsersSnapshot.data().count,
-      totalGroups: totalGroupsSnapshot.data().count,
-      totalItems: totalItemsSnapshot.data().count,
-      verificationRate: totalUsersSnapshot.data().count > 0 ? 
-        ((verifiedUsersSnapshot.data().count / totalUsersSnapshot.data().count) * 100).toFixed(1) : 0
+    console.log('[ADMIN] Advanced stats request:', { adminUid: req.admin.uid, college, dateRange });
+    
+    // Use Promise.allSettled for better error handling
+    const statsPromises = [
+      // Total users with college filter
+      college 
+        ? db.collection('users').where('college', '==', college).count().get()
+        : db.collection('users').count().get(),
+      
+      // Verified users with composite index optimization
+      college
+        ? db.collection('users')
+            .where('college', '==', college)
+            .where('verificationStatus', '==', 'verified')
+            .count().get()
+        : db.collection('users').where('verificationStatus', '==', 'verified').count().get(),
+      
+      // Pending verifications with optimized query
+      college
+        ? db.collection('users')
+            .where('college', '==', college)
+            .where('verificationStatus', '==', 'pending')
+            .count().get()
+        : db.collection('users').where('verificationStatus', '==', 'pending').count().get(),
+      
+      // Groups count with college filter
+      college
+        ? db.collection('groups').where('college', '==', college).count().get()
+        : db.collection('groups').count().get(),
+      
+      // Items count with college filter
+      college
+        ? db.collection('items').where('college', '==', college).count().get()
+        : db.collection('items').count().get()
+    ];
+    
+    const results = await Promise.allSettled(statsPromises);
+    
+    // Process results with error handling
+    const processResult = (result, defaultValue = 0) => {
+      if (result.status === 'fulfilled') {
+        return result.value.data().count;
+      } else {
+        console.error('Stats query failed:', result.reason);
+        return defaultValue;
+      }
     };
     
-    res.json({ success: true, stats });
+    const [
+      totalUsersResult,
+      verifiedUsersResult,
+      pendingUsersResult,
+      totalGroupsResult,
+      totalItemsResult
+    ] = results;
+    
+    const totalUsers = processResult(totalUsersResult);
+    const verifiedUsers = processResult(verifiedUsersResult);
+    const pendingUsers = processResult(pendingUsersResult);
+    const totalGroups = processResult(totalGroupsResult);
+    const totalItems = processResult(totalItemsResult);
+    
+    const stats = {
+      totalUsers,
+      verifiedUsers,
+      pendingUsers,
+      totalGroups,
+      totalItems,
+      verificationRate: totalUsers > 0 ? ((verifiedUsers / totalUsers) * 100).toFixed(1) : 0,
+      
+      // Additional insights
+      insights: {
+        college: college || 'all',
+        pendingVerificationPercentage: totalUsers > 0 ? ((pendingUsers / totalUsers) * 100).toFixed(1) : 0,
+        averageItemsPerUser: totalUsers > 0 ? (totalItems / totalUsers).toFixed(1) : 0,
+        averageGroupsPerUser: totalUsers > 0 ? (totalGroups / totalUsers).toFixed(2) : 0
+      },
+      
+      performance: {
+        queryTime: Date.now(),
+        parallelQueries: statsPromises.length,
+        successfulQueries: results.filter(r => r.status === 'fulfilled').length
+      }
+    };
+    
+    console.log('[ADMIN] Enhanced stats generated:', stats);
+    
+    res.json({ 
+      success: true, 
+      stats,
+      generatedAt: new Date().toISOString(),
+      filters: { college, dateRange }
+    });
+    
   } catch (err) {
-    console.error('Error fetching admin stats:', err);
-    res.status(500).json({ error: 'Failed to fetch stats' });
+    console.error('Error fetching enhanced admin stats:', err);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch statistics',
+      details: err.message 
+    });
   }
 });
 
