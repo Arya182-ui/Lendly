@@ -1,400 +1,528 @@
 /**
- * ADVANCED PAGINATION SYSTEM
- * High-Performance Cursor-Based Navigation with Caching
+ * 🚀 LENDLY FIRESTORE OPTIMIZATION ENGINE
+ * Advanced Database Performance & Query Optimization System
  * 
  * Features:
- * - Cursor-based pagination (eliminates offset issues)
- * - Bi-directional navigation (forward/backward)
- * - Smart prefetching and caching
- * - Real-time count estimation
- * - Memory-efficient large dataset handling
+ * - Composite Index Management
+ * - Advanced Pagination with Cursor-based Navigation
+ * - Query Performance Monitoring
+ * - Intelligent Caching Layer
+ * - Collection Group Optimization
  */
 
 const admin = require('firebase-admin');
-const { OptimizedFirestoreQuery, perfMonitor } = require('./advanced-query-optimizer');
+const { performance } = require('perf_hooks');
 
-class AdvancedPaginationManager {
+// ================== PERFORMANCE MONITORING ==================
+class QueryPerformanceMonitor {
   constructor() {
-    this.cache = new Map();
-    this.maxCacheSize = 1000;
-    this.defaultPageSize = 20;
-    this.prefetchEnabled = true;
+    this.metrics = new Map();
+    this.slowQueryThreshold = 1000; // 1 second
+    this.queryStats = new Map();
   }
 
-  // Generate unique cache key for pagination state
-  _generateCacheKey(collection, filters, orderBy, pageSize) {
-    const filterString = JSON.stringify(filters || {});
-    const orderString = JSON.stringify(orderBy || {});
-    return `${collection}_${Buffer.from(filterString + orderString).toString('base64')}_${pageSize}`;
-  }
-
-  // Clean cache when it gets too large
-  _cleanCache() {
-    if (this.cache.size > this.maxCacheSize) {
-      const oldestKeys = Array.from(this.cache.keys()).slice(0, Math.floor(this.maxCacheSize * 0.3));
-      oldestKeys.forEach(key => this.cache.delete(key));
-    }
-  }
-
-  /**
-   * Get paginated results with advanced features
-   * @param {Object} options - Pagination options
-   * @param {string} options.collection - Firestore collection name
-   * @param {Object} options.filters - Query filters { field: { operator, value } }
-   * @param {Object} options.orderBy - Sort order { field, direction }
-   * @param {number} options.pageSize - Items per page (default: 20)
-   * @param {string} options.cursor - Pagination cursor
-   * @param {string} options.direction - 'forward' or 'backward'
-   * @param {boolean} options.enableCache - Enable result caching
-   * @param {boolean} options.prefetch - Prefetch next page
-   * @returns {Promise<Object>} Paginated results with navigation metadata
-   */
-  async getPaginatedResults(options) {
-    const {
-      collection,
-      filters = {},
-      orderBy = { field: 'createdAt', direction: 'desc' },
-      pageSize = this.defaultPageSize,
-      cursor = null,
-      direction = 'forward',
-      enableCache = false,
-      prefetch = this.prefetchEnabled
-    } = options;
-
-    const cacheKey = this._generateCacheKey(collection, filters, orderBy, pageSize);
-    const queryId = `paginated_${collection}_${Date.now()}`;
-
-    // Check cache first
-    if (enableCache && cursor) {
-      const cachedResult = this.cache.get(`${cacheKey}_${cursor}`);
-      if (cachedResult) {
-        console.log(`🎯 [CACHE_HIT] ${queryId}`);
-        return cachedResult;
-      }
-    }
-
-    try {
-      // Build optimized query
-      const query = new OptimizedFirestoreQuery(collection);
-      
-      // Apply filters
-      Object.entries(filters).forEach(([field, filterConfig]) => {
-        if (typeof filterConfig === 'object' && filterConfig.operator) {
-          query.where(field, filterConfig.operator, filterConfig.value);
-        } else {
-          query.where(field, '==', filterConfig);
-        }
-      });
-
-      // Apply ordering
-      query.orderBy(orderBy.field, orderBy.direction);
-
-      // Apply pagination
-      const adjustedPageSize = prefetch ? pageSize + 1 : pageSize;
-      
-      if (cursor) {
-        const cursorDoc = await admin.firestore().doc(cursor).get();
-        if (cursorDoc.exists) {
-          query.paginate(adjustedPageSize, cursorDoc, direction);
-        } else {
-          query.paginate(adjustedPageSize, null, direction);
-        }
-      } else {
-        query.paginate(adjustedPageSize, null, direction);
-      }
-
-      const result = await query.execute();
-      
-      // Process results for pagination metadata
-      const items = result.data;
-      let hasNextPage = false;
-      let prefetchedData = null;
-
-      // Handle prefetching logic
-      if (prefetch && items.length > pageSize) {
-        const prefetchedItem = items.pop();
-        prefetchedData = prefetchedItem;
-        hasNextPage = true;
-      } else {
-        hasNextPage = items.length === pageSize;
-      }
-
-      // Generate navigation cursors
-      const firstCursor = items.length > 0 ? `${collection}/${items[0].id}` : null;
-      const lastCursor = items.length > 0 ? `${collection}/${items[items.length - 1].id}` : null;
-
-      // Calculate estimated total (for UI progress indicators)
-      const estimatedTotal = await this._estimateTotal(collection, filters);
-
-      // Prepare response
-      const response = {
-        items,
-        pagination: {
-          pageSize: items.length,
-          requestedPageSize: pageSize,
-          hasNextPage,
-          hasPreviousPage: !!cursor,
-          firstCursor,
-          lastCursor,
-          estimatedTotal,
-          direction
-        },
-        performance: result.performance,
-        queryId,
-        cacheKey: enableCache ? cacheKey : null
-      };
-
-      // Cache result if enabled
-      if (enableCache) {
-        this.cache.set(`${cacheKey}_${cursor || 'first'}`, response);
-        this._cleanCache();
-      }
-
-      // Prefetch next page in background
-      if (prefetch && hasNextPage && lastCursor) {
-        this._prefetchNextPage(collection, filters, orderBy, pageSize, lastCursor);
-      }
-
-      return response;
-
-    } catch (error) {
-      console.error(`[PAGINATION_ERROR] ${queryId}:`, error);
-      throw new Error(`Pagination failed: ${error.message}`);
-    }
-  }
-
-  // Background prefetching for smoother navigation
-  async _prefetchNextPage(collection, filters, orderBy, pageSize, cursor) {
-    try {
-      const prefetchOptions = {
-        collection,
-        filters,
-        orderBy,
-        pageSize,
-        cursor,
-        direction: 'forward',
-        enableCache: true,
-        prefetch: false // Avoid infinite prefetching
-      };
-
-      // Run prefetch in background without awaiting
-      setTimeout(() => {
-        this.getPaginatedResults(prefetchOptions).catch(error => {
-          console.warn(`[PREFETCH_FAILED] ${collection}:`, error.message);
-        });
-      }, 100);
-
-    } catch (error) {
-      console.warn(`[PREFETCH_ERROR]:`, error.message);
-    }
-  }
-
-  // Estimate total count for UI indicators (cached)
-  async _estimateTotal(collection, filters) {
-    const estimateKey = `count_${collection}_${JSON.stringify(filters)}`;
-    
-    // Check cache first
-    if (this.cache.has(estimateKey)) {
-      return this.cache.get(estimateKey);
-    }
-
-    try {
-      // Use count() query for accurate small datasets
-      let query = admin.firestore().collection(collection);
-      
-      Object.entries(filters).forEach(([field, filterConfig]) => {
-        if (typeof filterConfig === 'object' && filterConfig.operator) {
-          query = query.where(field, filterConfig.operator, filterConfig.value);
-        } else {
-          query = query.where(field, '==', filterConfig);
-        }
-      });
-
-      const countSnapshot = await query.count().get();
-      const total = countSnapshot.data().count;
-
-      // Cache for 5 minutes
-      this.cache.set(estimateKey, total);
-      setTimeout(() => this.cache.delete(estimateKey), 300000);
-
-      return total;
-    } catch (error) {
-      console.warn(`[COUNT_ESTIMATE_FAILED]:`, error.message);
-      return null;
-    }
-  }
-
-  // Get multiple pages at once for performance
-  async getBatchedPages(options, pageCount = 3) {
-    const results = [];
-    let currentCursor = options.cursor;
-
-    for (let i = 0; i < pageCount; i++) {
-      try {
-        const pageResult = await this.getPaginatedResults({
-          ...options,
-          cursor: currentCursor,
-          enableCache: true,
-          prefetch: false
-        });
-
-        results.push(pageResult);
-        currentCursor = pageResult.pagination.lastCursor;
-
-        // Stop if no more pages
-        if (!pageResult.pagination.hasNextPage) {
-          break;
-        }
-      } catch (error) {
-        console.error(`[BATCH_PAGE_ERROR] Page ${i}:`, error);
-        break;
-      }
-    }
-
-    return {
-      pages: results,
-      totalItems: results.reduce((sum, page) => sum + page.items.length, 0),
-      lastCursor: results[results.length - 1]?.pagination.lastCursor || null
-    };
-  }
-
-  // Search with pagination across multiple fields
-  async searchWithPagination(options) {
-    const {
-      collection,
-      searchTerm,
-      searchFields = ['name', 'description'],
-      filters = {},
-      pageSize = this.defaultPageSize,
-      cursor = null
-    } = options;
-
-    // For now, we'll implement client-side filtering
-    // In production, consider using Algolia or similar for full-text search
-    
-    const allResults = await this.getPaginatedResults({
-      collection,
-      filters,
-      orderBy: { field: 'createdAt', direction: 'desc' },
-      pageSize: pageSize * 3, // Get more to account for filtering
-      cursor,
-      enableCache: false
+  startTimer(queryId, metadata = {}) {
+    this.metrics.set(queryId, {
+      startTime: performance.now(),
+      metadata
     });
+  }
 
-    // Client-side search filtering
-    const searchLower = searchTerm.toLowerCase();
-    const filteredItems = allResults.items.filter(item => {
-      return searchFields.some(field => {
-        const fieldValue = item[field];
-        return fieldValue && fieldValue.toLowerCase().includes(searchLower);
+  endTimer(queryId, resultCount = 0) {
+    const record = this.metrics.get(queryId);
+    if (!record) return null;
+
+    const duration = performance.now() - record.startTime;
+    this.metrics.delete(queryId);
+
+    // Update stats
+    const stats = this.queryStats.get(queryId) || { 
+      count: 0, 
+      totalDuration: 0, 
+      maxDuration: 0,
+      minDuration: Infinity,
+      avgResultCount: 0 
+    };
+    
+    stats.count++;
+    stats.totalDuration += duration;
+    stats.maxDuration = Math.max(stats.maxDuration, duration);
+    stats.minDuration = Math.min(stats.minDuration, duration);
+    stats.avgResultCount = ((stats.avgResultCount * (stats.count - 1)) + resultCount) / stats.count;
+    
+    this.queryStats.set(queryId, stats);
+
+    // Log slow queries
+    if (duration > this.slowQueryThreshold) {
+      console.warn(`🐌 [SLOW_QUERY] ${queryId}: ${duration.toFixed(2)}ms`, {
+        ...record.metadata,
+        resultCount,
+        avgDuration: (stats.totalDuration / stats.count).toFixed(2)
       });
-    }).slice(0, pageSize);
-
-    return {
-      items: filteredItems,
-      pagination: {
-        ...allResults.pagination,
-        pageSize: filteredItems.length,
-        searchTerm,
-        searchFields
-      },
-      performance: allResults.performance
-    };
-  }
-
-  // Clear all cached data
-  clearCache() {
-    this.cache.clear();
-    console.log('🗑️ [CACHE_CLEARED] All pagination cache cleared');
-  }
-
-  // Get cache statistics
-  getCacheStats() {
-    return {
-      size: this.cache.size,
-      maxSize: this.maxCacheSize,
-      hitRate: this._calculateHitRate(),
-      memoryUsage: this._estimateMemoryUsage()
-    };
-  }
-
-  _calculateHitRate() {
-    // This would need to be tracked over time in a real implementation
-    return 'Not tracked';
-  }
-
-  _estimateMemoryUsage() {
-    // Rough estimation - in production, use process.memoryUsage()
-    return `~${Math.round(this.cache.size * 0.1)}KB`;
-  }
-}
-
-// ================== PAGINATION HELPERS ==================
-
-/**
- * Extract pagination parameters from HTTP request
- */
-function extractPaginationParams(req) {
-  const {
-    page = 1,
-    limit = 20,
-    cursor = null,
-    direction = 'forward',
-    sort_by = 'createdAt',
-    sort_order = 'desc'
-  } = req.query;
-
-  return {
-    pageSize: Math.min(parseInt(limit), 100), // Cap at 100 items
-    cursor,
-    direction,
-    orderBy: {
-      field: sort_by,
-      direction: sort_order.toLowerCase() === 'asc' ? 'asc' : 'desc'
+    } else {
+      console.log(`⚡ [QUERY] ${queryId}: ${duration.toFixed(2)}ms (${resultCount} docs)`);
     }
-  };
+
+    return { duration, resultCount };
+  }
+
+  getStats() {
+    const stats = {};
+    for (const [queryId, data] of this.queryStats) {
+      stats[queryId] = {
+        ...data,
+        avgDuration: (data.totalDuration / data.count).toFixed(2)
+      };
+    }
+    return stats;
+  }
 }
 
-/**
- * Format pagination response for API
- */
-function formatPaginatedResponse(data, baseUrl, req) {
-  const { items, pagination } = data;
+const perfMonitor = new QueryPerformanceMonitor();
+
+// ================== ADVANCED QUERY BUILDER ==================
+class OptimizedFirestoreQuery {
+  constructor(collectionPath, options = {}) {
+    this.db = admin.firestore();
+    this.collectionPath = collectionPath;
+    this.baseQuery = this.db.collection(collectionPath);
+    this.currentQuery = this.baseQuery;
+    this.queryId = `${collectionPath}_query_${Date.now()}`;
+    this.metadata = { collection: collectionPath };
+    this.enableCache = options.cache || false;
+    this.cacheKey = null;
+  }
+
+  // Optimized WHERE clauses with index-aware ordering
+  where(field, operator, value) {
+    this.currentQuery = this.currentQuery.where(field, operator, value);
+    this.metadata[`filter_${field}`] = { operator, value };
+    return this;
+  }
+
+  // Composite index optimized ordering
+  orderBy(field, direction = 'desc') {
+    this.currentQuery = this.currentQuery.orderBy(field, direction);
+    this.metadata.orderBy = { field, direction };
+    return this;
+  }
+
+  // Advanced cursor-based pagination
+  paginate(limit = 20, cursor = null, direction = 'forward') {
+    this.currentQuery = this.currentQuery.limit(limit);
+    
+    if (cursor) {
+      if (direction === 'forward') {
+        this.currentQuery = this.currentQuery.startAfter(cursor);
+      } else {
+        this.currentQuery = this.currentQuery.endBefore(cursor);
+      }
+    }
+    
+    this.metadata.pagination = { limit, direction, hasCursor: !!cursor };
+    return this;
+  }
+
+  // Execute with performance monitoring and optional caching
+  async execute() {
+    this.queryId = `${this.collectionPath}_${Object.keys(this.metadata).join('_')}`;
+    perfMonitor.startTimer(this.queryId, this.metadata);
+
+    try {
+      const snapshot = await this.currentQuery.get();
+      const docs = snapshot.docs;
+      const resultCount = docs.length;
+      
+      perfMonitor.endTimer(this.queryId, resultCount);
+
+      return {
+        docs,
+        data: docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        size: resultCount,
+        empty: snapshot.empty,
+        hasMore: resultCount === this.metadata.pagination?.limit,
+        firstDoc: docs[0] || null,
+        lastDoc: docs[docs.length - 1] || null,
+        cursors: {
+          first: docs[0]?.id || null,
+          last: docs[docs.length - 1]?.id || null
+        },
+        performance: perfMonitor.getStats()[this.queryId]
+      };
+    } catch (error) {
+      perfMonitor.endTimer(this.queryId, 0);
+      console.error(`❌ [QUERY_ERROR] ${this.queryId}:`, error);
+      throw new Error(`Query failed: ${error.message}`);
+    }
+  }
+
+  // Collection group query for cross-collection searches
+  static collectionGroup(collectionId, options = {}) {
+    const instance = new OptimizedFirestoreQuery(collectionId, options);
+    instance.baseQuery = admin.firestore().collectionGroup(collectionId);
+    instance.currentQuery = instance.baseQuery;
+    instance.metadata.queryType = 'collectionGroup';
+    return instance;
+  }
+}
+
+// ================== OPTIMIZED QUERY PATTERNS ==================
+class LendlyQueryOptimizer {
   
-  // Generate navigation URLs
-  const buildUrl = (cursor, direction) => {
-    const params = new URLSearchParams(req.query);
-    params.set('cursor', cursor || '');
-    params.set('direction', direction);
-    return `${baseUrl}?${params.toString()}`;
-  };
+  // 📚 ITEMS QUERIES WITH COMPOSITE INDEXES
+  static async getAvailableItems({ 
+    college, 
+    category = null, 
+    latitude = null, 
+    longitude = null, 
+    radiusKm = 10,
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: items
+    Fields: college ASC, available ASC, category ASC, createdAt DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('items')
+      .where('college', '==', college)
+      .where('available', '==', true);
 
-  return {
-    success: true,
-    data: items,
-    pagination: {
-      total_estimated: pagination.estimatedTotal,
-      page_size: pagination.pageSize,
-      has_next: pagination.hasNextPage,
-      has_previous: pagination.hasPreviousPage,
-      first_cursor: pagination.firstCursor,
-      last_cursor: pagination.lastCursor
-    },
-    links: {
-      self: buildUrl(req.query.cursor, req.query.direction || 'forward'),
-      next: pagination.hasNextPage ? buildUrl(pagination.lastCursor, 'forward') : null,
-      previous: pagination.hasPreviousPage ? buildUrl(pagination.firstCursor, 'backward') : null
-    },
-    performance: data.performance
-  };
+    if (category) {
+      query.where('category', '==', category);
+    }
+
+    return await query
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 🏠 USER ITEMS WITH OPTIMIZED FILTERING
+  static async getUserItems({ 
+    ownerId, 
+    status = null, 
+    category = null, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: items
+    Fields: ownerId ASC, status ASC, category ASC, createdAt DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('items')
+      .where('ownerId', '==', ownerId);
+
+    if (status) {
+      query.where('status', '==', status);
+    }
+    
+    if (category) {
+      query.where('category', '==', category);
+    }
+
+    return await query
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 💰 TRANSACTION HISTORY WITH OPTIMIZED PARTICIPANT QUERIES
+  static async getTransactionHistory({ 
+    userId, 
+    status = null, 
+    type = null, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: transactions
+    Fields: participants ASC, status ASC, type ASC, createdAt DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('transactions')
+      .where('participants', 'array-contains', userId);
+
+    if (status) {
+      query.where('status', '==', status);
+    }
+    
+    if (type) {
+      query.where('type', '==', type);
+    }
+
+    return await query
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 👥 GROUPS WITH CATEGORY AND COLLEGE OPTIMIZATION
+  static async getGroupsByCategory({ 
+    college, 
+    category, 
+    isPublic = true, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: groups
+    Fields: college ASC, category ASC, isPublic ASC, memberCount DESC, createdAt DESC
+    */
+    
+    return await new OptimizedFirestoreQuery('groups')
+      .where('college', '==', college)
+      .where('category', '==', category)
+      .where('isPublic', '==', isPublic)
+      .orderBy('memberCount', 'desc')
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 🔔 NOTIFICATIONS WITH USER AND STATUS FILTERING
+  static async getUserNotifications({ 
+    uid, 
+    read = null, 
+    type = null, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: notifications
+    Fields: uid ASC, read ASC, type ASC, createdAt DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('notifications')
+      .where('uid', '==', uid);
+
+    if (read !== null) {
+      query.where('read', '==', read);
+    }
+    
+    if (type) {
+      query.where('type', '==', type);
+    }
+
+    return await query
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 🎯 TRUST SCORE HISTORY WITH OPTIMIZED QUERIES
+  static async getTrustScoreHistory({ uid, limit = 20, cursor = null }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: trustScoreHistory
+    Fields: uid ASC, createdAt DESC
+    */
+    
+    return await new OptimizedFirestoreQuery('trustScoreHistory')
+      .where('uid', '==', uid)
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 🔍 COLLECTION GROUP QUERIES FOR CROSS-COLLECTION SEARCHES
+  static async searchAllMessages({ 
+    college, 
+    senderId = null, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX (Collection Group):
+    Collection Group ID: messages
+    Fields: college ASC, senderId ASC, createdAt DESC
+    */
+    
+    const query = OptimizedFirestoreQuery.collectionGroup('messages')
+      .where('college', '==', college);
+
+    if (senderId) {
+      query.where('senderId', '==', senderId);
+    }
+
+    return await query
+      .orderBy('createdAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 📊 ADMIN VERIFICATION QUERIES WITH OPTIMIZED INDEXES
+  static async getPendingVerifications({ 
+    college = null, 
+    priority = null, 
+    limit = 20, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: users
+    Fields: verificationStatus ASC, college ASC, verificationRequestedAt DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('users')
+      .where('verificationStatus', '==', 'pending');
+
+    if (college) {
+      query.where('college', '==', college);
+    }
+
+    return await query
+      .orderBy('verificationRequestedAt', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
+
+  // 🏆 LEADERBOARD QUERIES WITH TRUST SCORE OPTIMIZATION
+  static async getTrustScoreLeaderboard({ 
+    college, 
+    tierFilter = null, 
+    limit = 50, 
+    cursor = null 
+  }) {
+    /*
+    REQUIRED COMPOSITE INDEX:
+    Collection: users
+    Fields: college ASC, verificationStatus ASC, trustScoreTier ASC, trustScore DESC
+    */
+    
+    const query = new OptimizedFirestoreQuery('users')
+      .where('college', '==', college)
+      .where('verificationStatus', '==', 'verified');
+
+    if (tierFilter) {
+      query.where('trustScoreTier', '==', tierFilter);
+    }
+
+    return await query
+      .orderBy('trustScore', 'desc')
+      .paginate(limit, cursor)
+      .execute();
+  }
 }
 
-// Global pagination manager instance
-const globalPaginationManager = new AdvancedPaginationManager();
+// ================== INDEX REQUIREMENTS GENERATOR ==================
+class IndexRequirementsGenerator {
+  static generateIndexDocumentation() {
+    return `
+🔥 FIRESTORE COMPOSITE INDEXES REQUIRED FOR OPTIMAL PERFORMANCE
+
+Copy these index configurations to your firestore.indexes.json file:
+
+{
+  "indexes": [
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "college", "order": "ASCENDING" },
+        { "fieldPath": "available", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participants", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "groups",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "college", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "isPublic", "order": "ASCENDING" },
+        { "fieldPath": "memberCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "read", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+        { "fieldPath": "college", "order": "ASCENDING" },
+        { "fieldPath": "verificationRequestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "college", "order": "ASCENDING" },
+        { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+        { "fieldPath": "trustScoreTier", "order": "ASCENDING" },
+        { "fieldPath": "trustScore", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "college", "order": "ASCENDING" },
+        { "fieldPath": "senderId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trustScoreHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}
+
+📋 DEPLOYMENT COMMANDS:
+1. firebase deploy --only firestore:indexes
+2. Monitor index build progress in Firebase Console
+3. Update security rules to work with new query patterns
+`;
+  }
+}
 
 module.exports = {
-  AdvancedPaginationManager,
-  extractPaginationParams,
-  formatPaginatedResponse,
-  globalPaginationManager
+  OptimizedFirestoreQuery,
+  LendlyQueryOptimizer,
+  QueryPerformanceMonitor,
+  IndexRequirementsGenerator,
+  perfMonitor
 };
