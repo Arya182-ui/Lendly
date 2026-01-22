@@ -14,6 +14,9 @@ class DiscoveryScreen extends StatefulWidget {
 class _DiscoveryScreenState extends State<DiscoveryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ScrollController _trendingScrollController = ScrollController();
+  final ScrollController _newArrivalsScrollController = ScrollController();
+  final ScrollController _nearbyScrollController = ScrollController();
 
   // Data state
   Map<String, List<dynamic>> _categoryItems = {};
@@ -21,6 +24,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
   List<dynamic> _newArrivals = [];
   List<dynamic> _nearbyItems = [];
   bool _loading = true;
+  bool _loadingMoreTrending = false;
+  bool _loadingMoreNewArrivals = false;
+  bool _loadingMoreNearby = false;
   String? _error;
 
   // Categories with icons - using lowercase values matching backend
@@ -39,12 +45,102 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _loadDiscoveryData();
+
+    _trendingScrollController.addListener(() {
+      if (_trendingScrollController.position.pixels ==
+          _trendingScrollController.position.maxScrollExtent) {
+        _loadMoreTrendingItems();
+      }
+    });
+
+    _newArrivalsScrollController.addListener(() {
+      if (_newArrivalsScrollController.position.pixels ==
+          _newArrivalsScrollController.position.maxScrollExtent) {
+        _loadMoreNewArrivals();
+      }
+    });
+
+    _nearbyScrollController.addListener(() {
+      if (_nearbyScrollController.position.pixels ==
+          _nearbyScrollController.position.maxScrollExtent) {
+        _loadMoreNearbyItems();
+      }
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _trendingScrollController.dispose();
+    _newArrivalsScrollController.dispose();
+    _nearbyScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMoreTrendingItems() async {
+    if (_loadingMoreTrending) return;
+    setState(() {
+      _loadingMoreTrending = true;
+    });
+
+    try {
+      final newItems = await SearchService.getTrendingItems(
+        offset: _trendingItems.length,
+      );
+      setState(() {
+        _trendingItems.addAll(newItems);
+        _loadingMoreTrending = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingMoreTrending = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreNewArrivals() async {
+    if (_loadingMoreNewArrivals) return;
+    setState(() {
+      _loadingMoreNewArrivals = true;
+    });
+
+    try {
+      final newItems = await SearchService.getNewArrivals(
+        offset: _newArrivals.length,
+      );
+      setState(() {
+        _newArrivals.addAll(newItems);
+        _loadingMoreNewArrivals = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingMoreNewArrivals = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreNearbyItems() async {
+    if (_loadingMoreNearby) return;
+    setState(() {
+      _loadingMoreNearby = true;
+    });
+
+    try {
+      // Note: This requires the SearchService to be updated to handle location for "nearby"
+      final newItems = await SearchService.getNearbyItems(
+        latitude: 0, // Replace with actual user location
+        longitude: 0, // Replace with actual user location
+        offset: _nearbyItems.length,
+      );
+      setState(() {
+        _nearbyItems.addAll(newItems);
+        _loadingMoreNearby = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingMoreNearby = false;
+      });
+    }
   }
 
   Future<void> _loadDiscoveryData() async {
@@ -181,7 +277,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
     );
   }
 
-  Widget _buildItemsList(List<dynamic> items) {
+  Widget _buildItemsList(List<dynamic> items, ScrollController controller, bool loadingMore) {
     if (items.isEmpty) {
       return Center(
         child: Column(
@@ -202,10 +298,14 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
     }
 
     return ListView.separated(
+      controller: controller,
       padding: const EdgeInsets.all(16),
-      itemCount: items.length,
+      itemCount: items.length + (loadingMore ? 1 : 0),
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
+        if (index == items.length) {
+          return const Center(child: CircularProgressIndicator());
+        }
         final item = items[index];
         return _buildItemCard(item);
       },
@@ -415,9 +515,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
                   controller: _tabController,
                   children: [
                     _buildCategoryGrid(),
-                    _buildItemsList(_trendingItems),
-                    _buildItemsList(_newArrivals),
-                    _buildItemsList(_nearbyItems),
+                    _buildItemsList(_trendingItems, _trendingScrollController, _loadingMoreTrending),
+                    _buildItemsList(_newArrivals, _newArrivalsScrollController, _loadingMoreNewArrivals),
+                    _buildItemsList(_nearbyItems, _nearbyScrollController, _loadingMoreNearby),
                   ],
                 ),
     );

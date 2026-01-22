@@ -19,8 +19,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
-  String? _error;
   bool _obscurePassword = true;
+  String? _error;
 
   @override
   void initState() {
@@ -100,19 +100,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: const Text('Forgot Password?'),
                 ),
               ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -170,28 +157,36 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _loginWithPasswordMethod() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     if (email.isEmpty || password.isEmpty) {
-      setState(() { _loading = false; _error = 'Email and password required'; });
+      setState(() {
+        _loading = false;
+        _error = 'Email and password required';
+      });
       return;
     }
-    
+
     try {
       final firebaseAuth = FirebaseAuthService();
       final user = await firebaseAuth.signIn(email, password);
-      
+
       if (user?.user != null) {
         // Save session using both new and old methods for compatibility
         await SessionService.setUid(user!.user!.uid);
-        
+
         // Also update SharedPreferences directly as backup
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('uid', user.user!.uid);
         await prefs.setBool('is_logged_in', true);
-        
-        setState(() { _loading = false; });
+
+        setState(() {
+          _loading = false;
+        });
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
@@ -201,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       }
     } catch (e) {
       String errorMessage = 'Login failed. Please try again.';
-      
+
       // Handle Firebase Auth exceptions with user-friendly messages
       if (e.toString().contains('invalid-credential')) {
         errorMessage = 'User not found or incorrect password.';
@@ -218,28 +213,47 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       } else if (e.toString().contains('network-request-failed')) {
         errorMessage = 'Network error. Please check your internet connection.';
       }
-      
-      setState(() { 
-        _loading = false; 
-        _error = errorMessage; 
+
+      setState(() {
+        _loading = false;
       });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _onForgotPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(() { _error = 'Enter your email to reset password'; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Enter your email to reset password'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
-    setState(() { _loading = true; _error = null; });
-    
+    setState(() {
+      _loading = true;
+    });
+
     try {
       final firebaseAuth = FirebaseAuthService();
       await firebaseAuth.sendPasswordResetEmail(email);
-      
-      setState(() { _loading = false; });
-      
+
+      setState(() {
+        _loading = false;
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -250,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       }
     } catch (e) {
       String errorMessage = 'Password reset failed. Please try again.';
-      
+
       // Handle Firebase Auth exceptions with user-friendly messages
       if (e.toString().contains('user-not-found')) {
         errorMessage = 'No account found with this email address.';
@@ -261,11 +275,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       } else if (e.toString().contains('network-request-failed')) {
         errorMessage = 'Network error. Please check your internet connection.';
       }
-      
-      setState(() { 
-        _loading = false; 
-        _error = errorMessage; 
+
+      setState(() {
+        _loading = false;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

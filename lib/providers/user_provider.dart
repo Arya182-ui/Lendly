@@ -1,43 +1,46 @@
 import 'package:flutter/material.dart';
+import '../models/user_model.dart';
 
 class UserProvider extends ChangeNotifier {
-  String? uid;
-  String? name;
-  String? college;
-  String? avatar;
-  String verificationStatus = 'unknown';
-  int notifications = 0;
-  double trustScore = 0;
-  int wallet = 0;
+  UserModel _user = UserModel();
+
+  UserModel get user => _user;
+
+  // Convenience getters for direct access to user properties
+  String? get uid => _user.uid;
+  String? get avatar => _user.avatar;
+  String get verificationStatus => _user.verificationStatus;
 
   void updateFromSummary(Map<String, dynamic> summary) {
-    name = summary['name'] ?? '';
-    college = summary['college'] ?? '';
-    avatar = summary['avatar'] ?? '';
-    notifications = summary['notifications'] ?? 0;
-    trustScore = (summary['trustScore'] ?? 0).toDouble();
-    wallet = summary['wallet'] ?? 0;
-    verificationStatus = summary['verificationStatus'] ?? 'unknown';
+    _user = _user.copyWith(
+      name: summary['name'] ?? '',
+      college: summary['college'] ?? '',
+      avatar: summary['avatar'] ?? '',
+      notifications: summary['notifications'] ?? 0,
+      trustScore: (summary['trustScore'] ?? 0).toDouble(),
+      wallet: summary['wallet'] ?? 0,
+      verificationStatus: summary['verificationStatus'] ?? 'unknown',
+    );
     notifyListeners();
   }
 
   void setUid(String? newUid) {
-    uid = newUid;
+    _user = _user.copyWith(uid: newUid);
     notifyListeners();
   }
 
   void setVerificationStatus(String status) {
-    verificationStatus = status;
+    _user = _user.copyWith(verificationStatus: status);
     notifyListeners();
   }
 
   void setAvatar(String? newAvatar) {
-    avatar = newAvatar;
+    _user = _user.copyWith(avatar: newAvatar);
     notifyListeners();
   }
 
   void setName(String? newName) {
-    name = newName;
+    _user = _user.copyWith(name: newName);
     notifyListeners();
   }
 
@@ -46,9 +49,11 @@ class UserProvider extends ChangeNotifier {
     String? newCollege,
     String? newAvatar,
   }) {
-    if (newName != null) name = newName;
-    if (newCollege != null) college = newCollege;
-    if (newAvatar != null) avatar = newAvatar;
+    _user = _user.copyWith(
+      name: newName,
+      college: newCollege,
+      avatar: newAvatar,
+    );
     notifyListeners();
   }
 }

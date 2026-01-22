@@ -546,8 +546,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with TickerPr
                             Consumer<UserProvider>(
                               builder: (context, userProvider, child) {
                                 // Use fresh avatar from provider if viewing own profile
-                                final displayAvatar = (widget.uid == myUid && userProvider.avatar != null)
-                                  ? userProvider.avatar!
+                                final displayAvatar = (widget.uid == myUid && userProvider.user.avatar != null)
+                                  ? userProvider.user.avatar!
                                   : avatar;
                                 final timestamp = DateTime.now().millisecondsSinceEpoch;
                                 
