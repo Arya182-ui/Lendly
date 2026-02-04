@@ -182,8 +182,8 @@ class AppLogger {
       data: {
         'method': method,
         'url': url,
-        if (body != null) 'body': body,
-        if (headers != null) 'headers': headers,
+        if (body != null) 'body': _sanitizeData(body),
+        if (headers != null) 'headers': _sanitizeData(headers),
       },
     );
   }
@@ -205,7 +205,8 @@ class AppLogger {
       data: {
         'statusCode': statusCode,
         'duration': duration.inMilliseconds,
-        if (EnvConfig.enableDebugMode && response != null) 'response': response,
+        if (EnvConfig.enableDebugMode && response != null)
+          'response': _sanitizeData(response),
       },
     );
   }
@@ -342,6 +343,52 @@ class AppLogger {
     for (final listener in _listeners) {
       listener(entry);
     }
+  }
+
+  dynamic _sanitizeData(dynamic value) {
+    if (value is Map) {
+      return value.map((key, val) => MapEntry(key, _sanitizeEntry(key, val)));
+    }
+    if (value is List) {
+      return value.map(_sanitizeData).toList();
+    }
+    if (value is String) {
+      return value;
+    }
+    return value;
+  }
+
+  dynamic _sanitizeEntry(dynamic key, dynamic value) {
+    if (key is String) {
+      return _redactIfSensitiveKey(key, value);
+    }
+    return _sanitizeData(value);
+  }
+
+  dynamic _redactIfSensitiveKey(String key, dynamic value) {
+    final loweredKey = key.toLowerCase();
+    final sensitiveKeys = [
+      'authorization',
+      'token',
+      'id_token',
+      'refresh_token',
+      'email',
+      'uid',
+      'user_id',
+      'password',
+    ];
+
+    if (sensitiveKeys.any(loweredKey.contains)) {
+      return 'REDACTED';
+    }
+
+    if (value is String) {
+      if (value.contains('Bearer ')) {
+        return 'REDACTED';
+      }
+    }
+
+    return _sanitizeData(value);
   }
 
   void _printToConsole(LogEntry entry) {

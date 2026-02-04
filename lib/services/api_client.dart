@@ -498,7 +498,7 @@ class ApiClient {
       }
 
       baseHeaders['Authorization'] = 'Bearer $token';
-      logger.info('Auth header set', tag: 'ApiClient', data: {'tokenLength': token.length});
+      logger.info('Auth header set', tag: 'ApiClient', data: {'hasToken': true});
       return baseHeaders;
     } catch (e) {
       logger.error('Failed to get authentication headers', tag: 'ApiClient', data: {'error': e.toString()});

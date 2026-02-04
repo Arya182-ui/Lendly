@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import '../config/api_config.dart';
+import 'app_logger.dart';
 import 'firebase_auth_service.dart';
 
 class GroupService extends ChangeNotifier {
@@ -30,13 +31,13 @@ class GroupService extends ChangeNotifier {
     try {
       final token = await _authService.getIdToken();
       if (token != null && token.isNotEmpty) {
-        debugPrint('Auth token obtained for groups: ${token.length} chars');
+        logger.debug('Auth token obtained for groups');
         headers['Authorization'] = 'Bearer $token';
       } else {
-        debugPrint('Warning: No auth token available for groups');
+        logger.debug('Warning: No auth token available for groups');
       }
     } catch (e) {
-      debugPrint('Failed to get auth token: $e');
+      logger.debug('Failed to get auth token: $e');
     }
     return headers;
   }
@@ -145,26 +146,26 @@ class GroupService extends ChangeNotifier {
         headers: await _getAuthHeaders(),
       ).timeout(_timeout);
 
-      debugPrint('✅ Discover groups status: ${response.statusCode}');
+      logger.debug('✅ Discover groups status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('📦 Response data type: ${data.runtimeType}');
+        logger.debug('📦 Response data type: ${data.runtimeType}');
         
         // Backend returns array directly, not wrapped in 'groups' key
         if (data is List) {
-          debugPrint('✅ Got ${data.length} groups as List');
+          logger.debug('✅ Got ${data.length} groups as List');
           return List<Map<String, dynamic>>.from(data);
         } else if (data is Map && data['groups'] != null) {
-          debugPrint('✅ Got groups from Map wrapper');
+          logger.debug('✅ Got groups from Map wrapper');
           return List<Map<String, dynamic>>.from(data['groups']);
         } else {
-          debugPrint('⚠️ Unexpected format, returning empty list');
+          logger.debug('⚠️ Unexpected format, returning empty list');
           return [];
         }
       } else {
         final data = json.decode(response.body);
-        debugPrint('❌ Error response: $data');
+        logger.debug('❌ Error response: $data');
         throw Exception(data['error'] ?? 'Failed to fetch discover groups');
       }
     } on TimeoutException {
@@ -461,25 +462,25 @@ class GroupService extends ChangeNotifier {
         headers: await service._getAuthHeaders(),
       ).timeout(_timeout);
 
-      debugPrint('✅ My groups status: ${response.statusCode}');
+      logger.debug('✅ My groups status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('📦 My groups data type: ${data.runtimeType}');
+        logger.debug('📦 My groups data type: ${data.runtimeType}');
         // Backend returns array directly, not wrapped in 'groups' key
         if (data is List) {
-          debugPrint('✅ Got ${data.length} my groups as List');
+          logger.debug('✅ Got ${data.length} my groups as List');
           return List<Map<String, dynamic>>.from(data);
         } else if (data is Map && data['groups'] != null) {
-          debugPrint('✅ Got my groups from Map wrapper');
+          logger.debug('✅ Got my groups from Map wrapper');
           return List<Map<String, dynamic>>.from(data['groups']);
         } else {
-          debugPrint('⚠️ Unexpected my groups format: $data');
+          logger.debug('⚠️ Unexpected my groups format: $data');
           return [];
         }
       } else {
         final data = json.decode(response.body);
-        debugPrint('❌ My groups error: $data');
+        logger.debug('❌ My groups error: $data');
         throw Exception(data['error'] ?? 'Failed to fetch my groups');
       }
     } on TimeoutException {
@@ -487,7 +488,7 @@ class GroupService extends ChangeNotifier {
     } on SocketException {
       throw Exception('No internet connection available');
     } catch (e) {
-      debugPrint('❌ My groups exception: $e');
+      logger.debug('❌ My groups exception: $e');
       throw Exception('Failed to fetch my groups: $e');
     }
   }
@@ -502,14 +503,14 @@ class GroupService extends ChangeNotifier {
         headers: await service._getAuthHeaders(),
       ).timeout(_timeout);
 
-      debugPrint('✅ Group details status: ${response.statusCode} for group: $groupId');
+      logger.debug('✅ Group details status: ${response.statusCode} for group: $groupId');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('📦 Group details data type: ${data.runtimeType}');
+        logger.debug('📦 Group details data type: ${data.runtimeType}');
         return data['group'] ?? data;
       } else {
-        debugPrint('❌ Group details error: ${response.body}');
+        logger.debug('❌ Group details error: ${response.body}');
         return null;
       }
     } on TimeoutException {
@@ -517,7 +518,7 @@ class GroupService extends ChangeNotifier {
     } on SocketException {
       throw Exception('No internet connection available');
     } catch (e) {
-      debugPrint('❌ Group details exception: $e');
+      logger.debug('❌ Group details exception: $e');
       throw Exception('Failed to fetch group: $e');
     }
   }

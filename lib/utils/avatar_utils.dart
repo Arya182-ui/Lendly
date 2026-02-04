@@ -33,7 +33,7 @@ class AvatarUtils {
     }
     
     // Check if it's a valid URL
-    if (cleanedPath.startsWith('http://') || cleanedPath.startsWith('https://')) {
+    if (cleanedPath.startsWith('https://')) {
       return NetworkImage(cleanedPath);
     }
     

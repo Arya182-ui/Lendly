@@ -1103,9 +1103,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                           ElevatedButton(
                                             onPressed: () {
                                               final text = controller.text.trim();
-                                              if (text.isEmpty || (!text.startsWith('http://') && !text.startsWith('https://'))) {
+                                              if (text.isEmpty || !text.startsWith('https://')) {
                                                 setStateDialog(() {
-                                                  errorText = 'Link must start with http:// or https://';
+                                                  errorText = 'Link must start with https://';
                                                 });
                                               } else {
                                                 Navigator.pop(context, text);
@@ -1197,9 +1197,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                                 ? null
                                                 : () {
                                                     final text = controller.text.trim();
-                                                    if (!text.startsWith('http://') && !text.startsWith('https://')) {
+                                                    if (!text.startsWith('https://')) {
                                                       setStateDialog(() {
-                                                        errorText = 'Link must start with http:// or https://';
+                                                        errorText = 'Link must start with https://';
                                                       });
                                                     } else {
                                                       Navigator.pop(context, text);
@@ -1834,4 +1834,3 @@ class _SafetyControlsSheet extends StatelessWidget {
     );
   }
 }
-

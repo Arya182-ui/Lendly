@@ -1,9 +1,12 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service for managing user session and preferences
 class SessionService {
   static const String _uidKey = 'uid';
   static const String _verificationStatusKey = 'verificationStatus';
+  static const String _authTokenKey = 'auth_token';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   
   // Cache SharedPreferences instance for better performance
   static SharedPreferences? _prefs;
@@ -88,7 +91,8 @@ class SessionService {
       final prefs = await _getPrefs();
       _verificationStatus = 'unknown';
       await prefs.remove(_verificationStatusKey);
-      await prefs.remove('auth_token');
+      await prefs.remove(_authTokenKey);
+      await _secureStorage.delete(key: _authTokenKey);
       return await prefs.remove(_uidKey);
     } catch (e) {
       return false;
@@ -98,8 +102,18 @@ class SessionService {
   /// Get authentication token
   static Future<String?> getToken() async {
     try {
+      final storedToken = await _secureStorage.read(key: _authTokenKey);
+      if (storedToken != null && storedToken.isNotEmpty) {
+        return storedToken;
+      }
+
       final prefs = await _getPrefs();
-      return prefs.getString('auth_token');
+      final legacyToken = prefs.getString(_authTokenKey);
+      if (legacyToken != null && legacyToken.isNotEmpty) {
+        await _secureStorage.write(key: _authTokenKey, value: legacyToken);
+        await prefs.remove(_authTokenKey);
+      }
+      return legacyToken;
     } catch (_) {
       return null;
     }
@@ -108,8 +122,8 @@ class SessionService {
   /// Set authentication token
   static Future<void> setToken(String token) async {
     try {
-      final prefs = await _getPrefs();
-      await prefs.setString('auth_token', token);
+      if (token.isEmpty) return;
+      await _secureStorage.write(key: _authTokenKey, value: token);
     } catch (_) {
       // Silently fail - not critical
     }

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../config/env_config.dart';
 import 'app_logger.dart';
 
 /// Firebase Authentication Service
@@ -48,7 +47,7 @@ class FirebaseAuthService {
 
       if (credential.user != null) {
         await _storeUserData(credential.user!);
-        logger.info('User signed up successfully', tag: 'Auth', data: {'uid': credential.user!.uid});
+        logger.info('User signed up successfully', tag: 'Auth');
       }
 
       return credential;
@@ -87,7 +86,7 @@ class FirebaseAuthService {
 
       if (credential.user != null) {
         await _storeUserData(credential.user!);
-        logger.info('User signed in successfully', tag: 'Auth', data: {'uid': credential.user!.uid});
+        logger.info('User signed in successfully', tag: 'Auth');
       }
 
       return credential;
@@ -155,9 +154,8 @@ class FirebaseAuthService {
       await _secureStorage.write(key: _tokenKey, value: token);
       
       logger.info('Firebase ID token retrieved', tag: 'Auth', data: {
-        'uid': user.uid,
         'force_refresh': forceRefresh,
-        'token_length': token?.length ?? 0,
+        'has_token': token != null,
       });
       
       return token;
