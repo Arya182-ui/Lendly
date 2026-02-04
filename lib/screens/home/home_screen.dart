@@ -26,6 +26,7 @@ import '../chat/messages_screen.dart';
 import '../../widgets/trust_score_widgets.dart';
 import '../../widgets/completion_widgets.dart';
 import '../../services/coins_service.dart';
+import '../../config/env_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -57,6 +58,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   List<dynamic>? campusActivities = [];
   bool loadingChallenge = false;
   bool loadingActivities = false;
+
+  void _logDebug(String message) {
+    if (EnvConfig.enableDebugMode) {
+      logger.debug(message, tag: 'HomeScreen');
+    }
+  }
   
   // State
   bool isLoading = true;
@@ -138,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         setState(() {
           userAvatar = decodedAvatar;
         });
-        debugPrint('HomeScreen: Avatar synced from UserProvider and decoded: $decodedAvatar');
+        _logDebug('HomeScreen: Avatar synced from UserProvider and decoded: $decodedAvatar');
       }
     }
   }
@@ -148,25 +155,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   Future<void> _initData() async {
     final stopwatch = Stopwatch()..start();
     try {
-      debugPrint('HomeScreen: Starting _initData...');
+      _logDebug('HomeScreen: Starting _initData...');
       
       // Add timeout to the entire operation
       await _initDataWithTimeout().timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          debugPrint('HomeScreen: _initData timed out after 10 seconds');
+          _logDebug('HomeScreen: _initData timed out after 10 seconds');
           throw TimeoutException('Data loading timed out', const Duration(seconds: 10));
         },
       );
     } catch (e) {
-      debugPrint('HomeScreen: Exception in _initData: $e');
+      _logDebug('HomeScreen: Exception in _initData: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Request timed out. Please try again.')),
         );
       }
     } finally {
-      debugPrint('HomeScreen: _initData completed');
+      _logDebug('HomeScreen: _initData completed');
       if (mounted && isLoading) {
         // Only set loading false if it wasn't already set during data loading
         setState(() => isLoading = false);
@@ -178,13 +185,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _initDataWithTimeout() async {
-    debugPrint('HomeScreen: Calling SessionService.getUserId()...');
+    _logDebug('HomeScreen: Calling SessionService.getUserId()...');
     uid = await SessionService.getUserId();
-    debugPrint('HomeScreen: Got uid = ' + (uid?.toString() ?? 'null'));
+    _logDebug('HomeScreen: Got uid = ' + (uid?.toString() ?? 'null'));
     
     if (uid != null) {
       // PHASE 1: Load essential user data first and show UI immediately
-      debugPrint('HomeScreen: Loading essential user data first...');
+      _logDebug('HomeScreen: Loading essential user data first...');
       await _loadEssentialUserData();
       
       // UI should now be visible with basic data
@@ -193,10 +200,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       }
       
       // PHASE 2: Load other sections progressively in background
-      debugPrint('HomeScreen: Loading other sections progressively...');
+      _logDebug('HomeScreen: Loading other sections progressively...');
       _loadProgressively();
     } else {
-      debugPrint('HomeScreen: uid is null, not loading home data.');
+      _logDebug('HomeScreen: uid is null, not loading home data.');
     }
   }
 
@@ -208,18 +215,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     try {
       final homeService = HomeService(ApiConfig.baseUrl);
       
-      debugPrint('HomeScreen: Calling getSummary API...');
+      _logDebug('HomeScreen: Calling getSummary API...');
       // Load just user summary first
       final userData = await homeService.getSummary(uid!).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          debugPrint('HomeScreen: User summary timed out');
+          _logDebug('HomeScreen: User summary timed out');
           return <String, dynamic>{};
         },
       );
       
-      debugPrint('HomeScreen: getSummary returned: $userData');
-      debugPrint('HomeScreen: Available keys: ${userData.keys.toList()}');
+      _logDebug('HomeScreen: getSummary returned: $userData');
+      _logDebug('HomeScreen: Available keys: ${userData.keys.toList()}');
       
       // Store the consolidated data for progressive loading
       _consolidatedData = userData;
@@ -233,16 +240,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           // Nested structure
           user = userData['user'] as Map<String, dynamic>;
           wallet = userData['wallet'] as Map<String, dynamic>? ?? {};
-          debugPrint('HomeScreen: Using nested structure');
+          _logDebug('HomeScreen: Using nested structure');
         } else {
           // Flat structure
           user = userData;
           wallet = userData; // wallet data might be in the same flat object
-          debugPrint('HomeScreen: Using flat structure');
+          _logDebug('HomeScreen: Using flat structure');
         }
         
-        debugPrint('HomeScreen: User data for extraction: $user');
-        debugPrint('HomeScreen: Wallet data for extraction: $wallet');
+        _logDebug('HomeScreen: User data for extraction: $user');
+        _logDebug('HomeScreen: Wallet data for extraction: $wallet');
         
         final extractedName = user['name'] ?? user['first_name'] ?? 'Student';
         final extractedCollege = user['college'] ?? 'Invertis University';
@@ -252,14 +259,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         final extractedNotifications = user['notifications'] ?? 0;
         final extractedCoinBalance = wallet['balance'] ?? wallet['coinBalance'] ?? 0;
         
-        debugPrint('HomeScreen: Extracted data:');
-        debugPrint('  - name: $extractedName');
-        debugPrint('  - college: $extractedCollege');
-        debugPrint('  - avatar: $extractedAvatar');
-        debugPrint('  - trustScore: $extractedTrustScore');
-        debugPrint('  - verificationStatus: $extractedVerificationStatus');
-        debugPrint('  - notifications: $extractedNotifications');
-        debugPrint('  - coinBalance: $extractedCoinBalance');
+        _logDebug('HomeScreen: Extracted data:');
+        _logDebug('  - name: $extractedName');
+        _logDebug('  - college: $extractedCollege');
+        _logDebug('  - avatar: $extractedAvatar');
+        _logDebug('  - trustScore: $extractedTrustScore');
+        _logDebug('  - verificationStatus: $extractedVerificationStatus');
+        _logDebug('  - notifications: $extractedNotifications');
+        _logDebug('  - coinBalance: $extractedCoinBalance');
         
         setState(() {
           userName = extractedName;
@@ -273,24 +280,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           // Set main loading to false immediately so UI shows
           isLoading = false;
         });
-        debugPrint('HomeScreen: Essential user data setState completed');
-        debugPrint('HomeScreen: Current userName in state: $userName');
-        debugPrint('HomeScreen: isLoading set to false - UI should show now');
+        _logDebug('HomeScreen: Essential user data setState completed');
+        _logDebug('HomeScreen: Current userName in state: $userName');
+        _logDebug('HomeScreen: isLoading set to false - UI should show now');
       } else {
-        debugPrint('HomeScreen: userData is empty or widget not mounted');
+        _logDebug('HomeScreen: userData is empty or widget not mounted');
       }
     } catch (e) {
-      debugPrint('HomeScreen: Failed to load essential user data: $e');
+      _logDebug('HomeScreen: Failed to load essential user data: $e');
       
       // Fallback: try to load user data from profile endpoint
       try {
-        debugPrint('HomeScreen: Trying fallback user profile API...');
+        _logDebug('HomeScreen: Trying fallback user profile API...');
         final homeService = HomeService(ApiConfig.baseUrl);
         final profileData = await homeService.getUserData(uid!).timeout(
           const Duration(seconds: 5),
         );
         
-        debugPrint('HomeScreen: Profile data: $profileData');
+        _logDebug('HomeScreen: Profile data: $profileData');
         
         if (mounted && profileData.isNotEmpty) {
           setState(() {
@@ -303,10 +310,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             notifications = 0;
             coinBalance = 0;
           });
-          debugPrint('HomeScreen: Fallback user data loaded successfully');
+          _logDebug('HomeScreen: Fallback user data loaded successfully');
         }
       } catch (fallbackError) {
-        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+        _logDebug('HomeScreen: Fallback also failed: $fallbackError');
         // Set default values if both APIs fail
         if (mounted) {
           setState(() {
@@ -318,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             notifications = 0;
             coinBalance = 0;
           });
-          debugPrint('HomeScreen: Set default values due to both APIs failing');
+          _logDebug('HomeScreen: Set default values due to both APIs failing');
         }
       }
     }
@@ -328,9 +335,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   void _loadProgressively() {
     // Check location permission first (non-blocking)
     _checkLocationPermission().then((_) {
-      debugPrint('HomeScreen: Location permission check completed');
+      _logDebug('HomeScreen: Location permission check completed');
     }).catchError((e) {
-      debugPrint('HomeScreen: Location permission error: $e');
+      _logDebug('HomeScreen: Location permission error: $e');
     });
     
     // Load different sections with delays to show progressive loading
@@ -358,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   /// Load new arrivals section
   Future<void> _loadNewArrivals() async {
     try {
-      debugPrint('HomeScreen: Loading new arrivals from consolidated data...');
+      _logDebug('HomeScreen: Loading new arrivals from consolidated data...');
       
       if (_consolidatedData != null && _consolidatedData!.containsKey('newArrivals')) {
         final arrivals = (_consolidatedData!['newArrivals'] as List<dynamic>?) ?? [];
@@ -368,10 +375,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             newArrivals = arrivals;
             isLoadingNewArrivals = false;
           });
-          debugPrint('HomeScreen: New arrivals loaded from consolidated data: ${arrivals.length} items');
+          _logDebug('HomeScreen: New arrivals loaded from consolidated data: ${arrivals.length} items');
         }
       } else {
-        debugPrint('HomeScreen: No consolidated data, making separate API call...');
+        _logDebug('HomeScreen: No consolidated data, making separate API call...');
         final homeService = HomeService(ApiConfig.baseUrl);
         final arrivals = await homeService.getNewArrivals(uid!);
         
@@ -380,11 +387,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             newArrivals = arrivals;
             isLoadingNewArrivals = false;
           });
-          debugPrint('HomeScreen: New arrivals loaded from API: ${arrivals.length} items');
+          _logDebug('HomeScreen: New arrivals loaded from API: ${arrivals.length} items');
         }
       }
     } catch (e) {
-      debugPrint('HomeScreen: Failed to load new arrivals: $e');
+      _logDebug('HomeScreen: Failed to load new arrivals: $e');
       if (mounted) {
         setState(() {
           isLoadingNewArrivals = false;
@@ -396,7 +403,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   /// Load groups section
   Future<void> _loadGroups() async {
     try {
-      debugPrint('HomeScreen: Loading groups from consolidated data...');
+      _logDebug('HomeScreen: Loading groups from consolidated data...');
       
       if (_consolidatedData != null && _consolidatedData!.containsKey('groups')) {
         final groups = (_consolidatedData!['groups'] as List<dynamic>?) ?? [];
@@ -406,10 +413,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             activeGroups = groups;
             isLoadingGroups = false;
           });
-          debugPrint('HomeScreen: Groups loaded from consolidated data: ${groups.length} items');
+          _logDebug('HomeScreen: Groups loaded from consolidated data: ${groups.length} items');
         }
       } else {
-        debugPrint('HomeScreen: No consolidated data, making separate API call...');
+        _logDebug('HomeScreen: No consolidated data, making separate API call...');
         final homeService = HomeService(ApiConfig.baseUrl);
         final groups = await homeService.getPublicGroups(uid!);
         
@@ -418,11 +425,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             activeGroups = groups;
             isLoadingGroups = false;
           });
-          debugPrint('HomeScreen: Groups loaded from API: ${groups.length} items');
+          _logDebug('HomeScreen: Groups loaded from API: ${groups.length} items');
         }
       }
     } catch (e) {
-      debugPrint('HomeScreen: Failed to load groups: $e');
+      _logDebug('HomeScreen: Failed to load groups: $e');
       if (mounted) {
         setState(() {
           isLoadingGroups = false;
@@ -433,11 +440,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   
   /// Load all home screen data in a single optimized API call
   Future<void> _loadAllHomeData({double? latitude, double? longitude}) async {
-    debugPrint('HomeScreen: _loadAllHomeData called with uid=$uid, lat=$latitude, lon=$longitude');
+    _logDebug('HomeScreen: _loadAllHomeData called with uid=$uid, lat=$latitude, lon=$longitude');
     
     try {
       final homeService = HomeService(ApiConfig.baseUrl);
-      debugPrint('HomeScreen: Created HomeService, calling getAllHomeData...');
+      _logDebug('HomeScreen: Created HomeService, calling getAllHomeData...');
       
       // Add timeout to the API call itself
       final data = await homeService.getAllHomeData(
@@ -447,17 +454,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       ).timeout(
         const Duration(seconds: 8),
         onTimeout: () {
-          debugPrint('HomeScreen: getAllHomeData timed out after 8 seconds');
+          _logDebug('HomeScreen: getAllHomeData timed out after 8 seconds');
           throw TimeoutException('API call timed out', const Duration(seconds: 8));
         },
       );
       
-      debugPrint('HomeScreen: getAllHomeData completed, data keys: ${data.keys.toList()}');
-      debugPrint('HomeScreen: Data summary - user: ${data['user'] != null}, wallet: ${data['wallet'] != null}, lists: ${data.length}');
+      _logDebug('HomeScreen: getAllHomeData completed, data keys: ${data.keys.toList()}');
+      _logDebug('HomeScreen: Data summary - user: ${data['user'] != null}, wallet: ${data['wallet'] != null}, lists: ${data.length}');
       
       // Defensive: log if data is null or missing keys
       if (data.isEmpty) {
-        debugPrint('HomeScreen: getAllHomeData returned empty data!');
+        _logDebug('HomeScreen: getAllHomeData returned empty data!');
         return;
       }
       
@@ -466,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       final wallet = data['wallet'] as Map<String, dynamic>? ?? {};
       final impact = data['impact'] as Map<String, dynamic>? ?? {};
       
-      debugPrint('HomeScreen: Extracted data - user: ${user.keys.toList()}, wallet: ${wallet.keys.toList()}');
+      _logDebug('HomeScreen: Extracted data - user: ${user.keys.toList()}, wallet: ${wallet.keys.toList()}');
       
       if (mounted) {
         setState(() {
@@ -492,17 +499,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           loadingChallenge = false;
           loadingActivities = false;
         });
-        debugPrint('HomeScreen: State updated successfully');
+        _logDebug('HomeScreen: State updated successfully');
       }
     } catch (e) {
-      debugPrint('HomeScreen: Failed to load consolidated home data: $e');
+      _logDebug('HomeScreen: Failed to load consolidated home data: $e');
       // Fallback to individual calls if consolidated fails
       try {
-        debugPrint('HomeScreen: Attempting fallback...');
+        _logDebug('HomeScreen: Attempting fallback...');
         await _loadDataFallback();
-        debugPrint('HomeScreen: Fallback completed');
+        _logDebug('HomeScreen: Fallback completed');
       } catch (fallbackError) {
-        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+        _logDebug('HomeScreen: Fallback also failed: $fallbackError');
       }
     }
   }
@@ -523,42 +530,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
 
   Future<void> _checkLocationPermission() async {
     try {
-      debugPrint('HomeScreen: Checking location permission with timeout...');
+      _logDebug('HomeScreen: Checking location permission with timeout...');
       
       // Add timeout to location permission check
       LocationPermission permission = await Geolocator.checkPermission().timeout(
         const Duration(seconds: 3),
         onTimeout: () {
-          debugPrint('HomeScreen: Location permission check timed out, assuming denied');
+          _logDebug('HomeScreen: Location permission check timed out, assuming denied');
           return LocationPermission.denied;
         },
       );
       
-      debugPrint('HomeScreen: Initial permission: $permission');
+      _logDebug('HomeScreen: Initial permission: $permission');
       
       if (permission == LocationPermission.denied && !_locationPermissionAsked) {
         _locationPermissionAsked = true;
-        debugPrint('HomeScreen: Requesting location permission...');
+        _logDebug('HomeScreen: Requesting location permission...');
         
         // Add timeout to permission request
         permission = await Geolocator.requestPermission().timeout(
           const Duration(seconds: 5),
           onTimeout: () {
-            debugPrint('HomeScreen: Location permission request timed out, assuming denied');
+            _logDebug('HomeScreen: Location permission request timed out, assuming denied');
             return LocationPermission.denied;
           },
         );
         
-        debugPrint('HomeScreen: Permission after request: $permission');
+        _logDebug('HomeScreen: Permission after request: $permission');
       }
       
       hasLocationPermission = permission == LocationPermission.always || 
                              permission == LocationPermission.whileInUse;
       
-      debugPrint('HomeScreen: hasLocationPermission = $hasLocationPermission');
+      _logDebug('HomeScreen: hasLocationPermission = $hasLocationPermission');
       
       if (hasLocationPermission) {
-        debugPrint('HomeScreen: Loading nearby items progressively...');
+        _logDebug('HomeScreen: Loading nearby items progressively...');
         // Load nearby items after a delay to not block UI
         Future.delayed(const Duration(milliseconds: 500), () {
           _loadNearbyItemsProgressive();
@@ -566,7 +573,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       }
     } catch (e) {
       // Location permission check failed - continue without location features
-      debugPrint('HomeScreen: Location permission error: $e');
+      _logDebug('HomeScreen: Location permission error: $e');
       hasLocationPermission = false;
     }
   }
@@ -580,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     }
     
     try {
-      debugPrint('HomeScreen: Getting GPS location for nearby items...');
+      _logDebug('HomeScreen: Getting GPS location for nearby items...');
       
       Position position;
       try {
@@ -591,9 +598,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           ),
         ).timeout(const Duration(seconds: 12)); // Increased timeout
         
-        debugPrint('HomeScreen: Got GPS position: ${position.latitude}, ${position.longitude}');
+        _logDebug('HomeScreen: Got GPS position: ${position.latitude}, ${position.longitude}');
       } on TimeoutException {
-        debugPrint('HomeScreen: GPS location timeout, trying last known position...');
+        _logDebug('HomeScreen: GPS location timeout, trying last known position...');
         position = await Geolocator.getLastKnownPosition() ??
             Position(
               latitude: 26.8467, // Default to Bareilly
@@ -607,10 +614,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               speed: 0.0,
               speedAccuracy: 0.0,
             );
-        debugPrint('HomeScreen: Using fallback position: ${position.latitude}, ${position.longitude}');
+        _logDebug('HomeScreen: Using fallback position: ${position.latitude}, ${position.longitude}');
       }
       
-      debugPrint('HomeScreen: Making API call for nearby items...');
+      _logDebug('HomeScreen: Making API call for nearby items...');
       final homeService = HomeService(ApiConfig.baseUrl);
       final nearbyItems = await homeService.getItemsNearYou(
         uid: uid!,
@@ -619,7 +626,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          debugPrint('HomeScreen: Nearby items API call timed out');
+          _logDebug('HomeScreen: Nearby items API call timed out');
           return <dynamic>[];
         },
       ); // Increased from 5 to 10 seconds
@@ -629,10 +636,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           itemsNearYou = nearbyItems;
           isLoadingNearbyItems = false;
         });
-        debugPrint('HomeScreen: Nearby items loaded: ${nearbyItems.length} items');
+        _logDebug('HomeScreen: Nearby items loaded: ${nearbyItems.length} items');
       }
     } catch (e) {
-      debugPrint('HomeScreen: Failed to load nearby items: $e');
+      _logDebug('HomeScreen: Failed to load nearby items: $e');
       
       // Try fallback - load nearby items without precise location
       try {
@@ -647,7 +654,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         }
         
         if (lastPosition != null) {
-          debugPrint('HomeScreen: Using last known position as fallback');
+          _logDebug('HomeScreen: Using last known position as fallback');
           final nearbyItems = await homeService.getItemsNearYou(
             uid: uid!,
             latitude: lastPosition.latitude,
@@ -659,15 +666,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               itemsNearYou = nearbyItems;
               isLoadingNearbyItems = false;
             });
-            debugPrint('HomeScreen: Nearby items loaded with fallback: ${nearbyItems.length} items');
+            _logDebug('HomeScreen: Nearby items loaded with fallback: ${nearbyItems.length} items');
           }
           return;
         }
         
         // Final fallback - use general location or skip
-        debugPrint('HomeScreen: No location available, loading empty nearby items');
+        _logDebug('HomeScreen: No location available, loading empty nearby items');
       } catch (fallbackError) {
-        debugPrint('HomeScreen: Fallback also failed: $fallbackError');
+        _logDebug('HomeScreen: Fallback also failed: $fallbackError');
       }
       
       if (mounted) {
@@ -696,14 +703,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         notifications = userData['notifications'] ?? 0;
       });
       
-      debugPrint('HomeScreen: Avatar loaded from API and decoded: $userAvatar');
+      _logDebug('HomeScreen: Avatar loaded from API and decoded: $userAvatar');
       
       // Sync avatar with UserProvider for global state persistence
       if (mounted && userAvatar != null) {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         if (userProvider.avatar != userAvatar) {
           userProvider.setAvatar(userAvatar!);
-          debugPrint('HomeScreen: Avatar synced to UserProvider: $userAvatar');
+          _logDebug('HomeScreen: Avatar synced to UserProvider: $userAvatar');
         }
       }
       
@@ -736,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       }
     } catch (e) {
       // Coin balance load failed - use default value
-      debugPrint('Failed to load coin balance: $e');
+      _logDebug('Failed to load coin balance: $e');
     }
   }
 
@@ -754,7 +761,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         activeGroups = results[1];
       });
     } catch (e) {
-      debugPrint('Failed to load home data: $e');
+      _logDebug('Failed to load home data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load home data.')),
@@ -781,7 +788,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      debugPrint('Failed to load impact data: $e');
+      _logDebug('Failed to load impact data: $e');
       if (mounted) {
         setState(() {
           isLoadingImpact = false;
@@ -811,7 +818,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         });
       }
     } catch (e) {
-      debugPrint('Failed to load recent chats: $e');
+      _logDebug('Failed to load recent chats: $e');
       if (mounted) {
         setState(() {
           isLoadingRecentChats = false;
@@ -884,7 +891,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       
       setState(() => itemsNearYou = nearbyData);
     } catch (e) {
-      debugPrint('Failed to load nearby items: $e');
+      _logDebug('Failed to load nearby items: $e');
     }
   }
 
@@ -921,7 +928,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     }
     
     // Check if it's a valid URL
-    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+    if (cleanPath.startsWith('https://')) {
       return NetworkImage(cleanPath);
     }
     
@@ -1413,7 +1420,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                               builder: (context, userProvider, child) {
                                 // Prioritize local userAvatar (fresh from database) over provider
                                 final avatarToShow = userAvatar ?? userProvider.avatar;
-                                debugPrint('HomeScreen: Avatar widget using: $avatarToShow (local: $userAvatar, provider: ${userProvider.avatar})');
+                                _logDebug('HomeScreen: Avatar widget using: $avatarToShow (local: $userAvatar, provider: ${userProvider.avatar})');
                                 return _buildAvatarWidget(avatarToShow, userName ?? 'U');
                               },
                             ),
